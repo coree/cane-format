@@ -11,6 +11,13 @@ Usage::
 
 from cane_format._parser import ParseOptions, ParseResult, loads
 from cane_format._writer import dumps
+from cane_format.bioc import (
+    format_bioc_json,
+    iter_bioc_json,
+    parse_bioc_json,
+    read_bioc_json,
+    write_bioc_json,
+)
 from cane_format.brat import format_brat, iter_brat, parse_brat, read_brat, write_brat
 from cane_format.conll import (
     align,
@@ -56,20 +63,25 @@ __all__ = [
     "Variant",
     "align",
     "dumps",
+    "format_bioc_json",
     "format_brat",
     "format_conll",
     "format_json",
     "from_tokens",
+    "iter_bioc_json",
     "iter_brat",
     "iter_conll",
     "iter_json",
     "loads",
+    "parse_bioc_json",
     "parse_brat",
     "parse_conll",
     "parse_json",
+    "read_bioc_json",
     "read_brat",
     "read_conll",
     "read_json",
+    "write_bioc_json",
     "write_brat",
     "write_conll",
     "write_json",

@@ -17,6 +17,12 @@ All notable changes to this project are documented here. The format follows
 - CoNLL / IOB (BIO, IOB1, BIOES, BILOU): `read_conll`, `iter_conll`, `parse_conll`,
   `write_conll`, `format_conll`, `from_tokens` (Hugging Face style), `align` (onto raw text);
   `encoding=` and opt-in `comment_prefix=` (CoNLL-U style `# doc_id = …` lines).
+- BioC JSON (UTF-8 byte offsets by default; passages placed at their offsets; passage, sentence
+  and document-level annotations; trigger nodes; PubTator3 exports): `read_bioc_json`,
+  `iter_bioc_json`, `parse_bioc_json`, `write_bioc_json`, `format_bioc_json`.
+
+### Changed
+- Text verification shared by the brat and BioC readers (`_verify`).
 
 ## [0.0.0]
 

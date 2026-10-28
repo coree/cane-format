@@ -122,3 +122,35 @@ def test_conll_files_round_trip(path: Path, scheme: str, comment: str | None) ->
     assert [c for c in original if c] == [line.split() for line in out.splitlines() if line]
     again = cane.parse_conll(out, scheme=scheme, comment_prefix=comment)  # type: ignore[arg-type]
     assert [d.entities for d in again] == [d.entities for d in docs]
+
+
+def _norm(x: object) -> object:
+    if isinstance(x, dict):
+        return {
+            k: _norm(v)
+            for k, v in x.items()
+            if v not in ([], {}, "") or k in ("text", "id", "offset")
+        }
+    if isinstance(x, list):
+        return [_norm(v) for v in x]
+    return x
+
+
+def bioc_files() -> list[Path]:
+    return sorted((DATA / "bioc").rglob("*.json")) if (DATA / "bioc").is_dir() else []
+
+
+@pytest.mark.parametrize("path", bioc_files(), ids=lambda p: p.name)
+def test_bioc_files_round_trip_identically(path: Path) -> None:
+    import json
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        docs = cane.read_bioc_json(path, concept_keys=("identifier", "cui"))
+    original = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(original, list):
+        original = original[0]
+    if "PubTator3" in original:
+        original = {"documents": original["PubTator3"]}
+    ours = json.loads(cane.format_bioc_json(docs))
+    assert _norm(ours["documents"]) == _norm(original["documents"])

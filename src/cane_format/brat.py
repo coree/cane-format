@@ -15,7 +15,8 @@ from os import PathLike
 from pathlib import Path
 from typing import Any, Literal
 
-from cane_format._offsets import UNITS, OffsetMap, OffsetUnit
+from cane_format._offsets import OffsetMap, OffsetUnit
+from cane_format._verify import covers, unit_hint
 from cane_format.errors import (
     CaneFormatError,
     IntegrityError,
@@ -147,7 +148,7 @@ class _Reader:
                 f"{self.doc_id}, .ann line {n}: offset {err} falls inside a character "
                 f"({self.unit} offsets)"
             ) from None
-        if stored is not None and self.verify != "off" and not _covers(self.text, spans, stored):
+        if stored is not None and self.verify != "off" and not covers(self.text, spans, stored):
             self.mismatch(n, key, spans, stored, raw)
         self.entities.append(Entity(spans=spans, label=label, id=key))
 
@@ -158,18 +159,7 @@ class _Reader:
         message = (
             f"{self.doc_id}, .ann line {n}: {key} stores {stored!r} but the text at its "
             f"{self.unit} offsets reads {found!r}"
-        )
-        for unit in UNITS:
-            if unit == self.unit:
-                continue
-            other = OffsetMap(self.text, unit)
-            try:
-                alt = [Span(other.to_codepoint(s), other.to_codepoint(e)) for s, e in raw]
-            except (KeyError, ValueError):
-                continue
-            if _covers(self.text, alt, stored):
-                message += f"; the offsets fit offset_unit={unit!r}"
-                break
+        ) + unit_hint(self.text, [(r[0], r[1]) for r in raw], stored, self.unit)
         if self.verify == "raise":
             raise IntegrityError(message)
         warnings.warn(message, stacklevel=5)
@@ -207,23 +197,6 @@ def _members(tokens: Iterable[str]) -> list[Member]:
         role, ref = token.split(":", 1)
         members.append(Member(ref, role))
     return members
-
-
-def _covers(text: str, spans: list[Span], stored: str) -> bool:
-    """Whether the stored text shows each fragment, in order (any separator between them)."""
-    stored = _WHITESPACE.sub(" ", stored)
-    frags = [_WHITESPACE.sub(" ", text[s.start : s.end]) for s in spans]
-    if len(frags) == 1:
-        return stored == frags[0]
-    if not (stored.startswith(frags[0]) and stored.endswith(frags[-1])):
-        return False
-    pos = len(frags[0])
-    for frag in frags[1:-1]:
-        pos = stored.find(frag, pos)
-        if pos < 0:
-            return False
-        pos += len(frag)
-    return pos <= len(stored) - len(frags[-1])
 
 
 # --- writing -------------------------------------------------------------------------------

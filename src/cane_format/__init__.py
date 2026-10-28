@@ -12,6 +12,15 @@ Usage::
 from cane_format._parser import ParseOptions, ParseResult, loads
 from cane_format._writer import dumps
 from cane_format.brat import format_brat, iter_brat, parse_brat, read_brat, write_brat
+from cane_format.conll import (
+    align,
+    format_conll,
+    from_tokens,
+    iter_conll,
+    parse_conll,
+    read_conll,
+    write_conll,
+)
 from cane_format.dialect import ENGLISH, Dialect, Variant
 from cane_format.errors import (
     CaneFormatError,
@@ -45,16 +54,23 @@ __all__ = [
     "Span",
     "UnrepresentableError",
     "Variant",
+    "align",
     "dumps",
     "format_brat",
+    "format_conll",
     "format_json",
+    "from_tokens",
     "iter_brat",
+    "iter_conll",
     "iter_json",
     "loads",
     "parse_brat",
+    "parse_conll",
     "parse_json",
     "read_brat",
+    "read_conll",
     "read_json",
     "write_brat",
+    "write_conll",
     "write_json",
 ]

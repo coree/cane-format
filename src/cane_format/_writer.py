@@ -35,9 +35,10 @@ def dumps(
         variant: ``"base"``, ``"disco"``, ``"context"`` or ``"full"``.
         context: Anchor size in whitespace-separated units on each side (anchored variants).
         handles: Prefix each record with a handle ``T1``, ``T2``, … in output order.
-        on_unrepresentable: What to do with an entity the variant cannot express (unlabelled,
-            or discontinuous in Base/Context): ``"raise"``, or ``"skip"``, ``"first"`` (first span
-            only) or ``"hull"`` (one span covering the gaps), which warn.
+        on_unrepresentable: What to do with an entity the variant cannot express (no label, a
+            label that is not one token, or discontinuous in Base/Context): ``"raise"``, or
+            ``"skip"``, ``"first"`` (first span only) or ``"hull"`` (one span covering the
+            gaps), which warn. Entities with label problems are skipped by any of these.
         on_collision: ``"raise"`` if a part or anchor contains a delimiter, or ``"ignore"``.
         lossy: ``"warn"`` once about information CANE cannot carry, or ``"ignore"``.
         dialect: The surface vocabulary.
@@ -73,14 +74,14 @@ def _writable_spans(
     if entity.label is None:
         problem = "has no label"
     elif not entity.label or _WHITESPACE.search(entity.label):
-        raise UnrepresentableError(f"entity {entity.id}: label {entity.label!r} is not one token")
+        problem = f"has the label {entity.label!r}, which is not one token"
     elif len(entity.spans) > 1 and not variant.multi_part:
         problem = f"is discontinuous, which CANE-{variant.value.title()} cannot express"
     if problem is None:
         return entity.spans
     if strategy == "raise":
         raise UnrepresentableError(f"entity {entity.id} {problem}")
-    if strategy == "skip" or entity.label is None:
+    if strategy == "skip" or problem.startswith("has"):  # no strategy can repair a label
         dropped.append(f"entity {entity.id} (skipped: {problem})")
         return None
     dropped.append(f"entity {entity.id} ({strategy}: {problem})")

@@ -23,8 +23,15 @@ All notable changes to this project are documented here. The format follows
 - Inline XML (label as element name, or a generic element with a type attribute; refs for
   discontinuous and crossing entities; always well-formed; reads corpora such as GENIA with
   structural markup): `read_xml`, `iter_xml`, `parse_xml`, `write_xml`, `format_xml`.
+- `to_nervaluate`: documents in nervaluate-disco's span format.
+- `build_prompt` and `guideline`: few-shot prompts in the CANE paper's layout, with guideline
+  texts written from the dialect and matching what `dumps` writes.
+- Command line: `cane-format convert` (between all formats) and `cane-format parse` (model
+  output to any format; exits 1 when lines could not be grounded unless `--allow-issues`).
 
 ### Changed
+- `on_unrepresentable="skip"` (and the other strategies) also skip entities whose label the
+  target cannot hold, instead of always raising.
 - Text verification shared by the brat and BioC readers (`_verify`).
 
 ## [0.0.0]

@@ -402,7 +402,7 @@ def format_conll(
             ``"innermost"``, or ``"skip"`` every entity involved (all but raise warn).
         on_unrepresentable: Discontinuous, unlabelled or sentence-crossing entities:
             ``"raise"``, ``"first"`` span, ``"hull"``, ``"split"`` into one entity per span,
-            or ``"skip"`` (all but raise warn; only ``"skip"`` applies to unlabelled entities).
+            or ``"skip"`` (all but raise warn; entities with label problems are skipped).
         lossy: ``"warn"`` once about information CoNLL cannot carry, or ``"ignore"``.
     """
     notes: list[str] = []
@@ -471,10 +471,10 @@ def _entity_spans(
     e: Entity, strategy: OnUnrepresentable, notes: list[str]
 ) -> list[tuple[str, Span]]:
     if e.label is None or _WHITESPACE.search(e.label) or not e.label:
-        if e.label is None and strategy == "skip":
-            notes.append(f"entity {e.id} skipped: no label")
-            return []
-        raise UnrepresentableError(f"entity {e.id}: CoNLL needs a one-token label")
+        if strategy == "raise":
+            raise UnrepresentableError(f"entity {e.id}: CoNLL needs a one-token label")
+        notes.append(f"entity {e.id} skipped: label {e.label!r} is not one token")
+        return []
     if len(e.spans) == 1:
         return [(e.label, e.spans[0])]
     if strategy == "raise":

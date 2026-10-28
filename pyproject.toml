@@ -18,6 +18,9 @@ classifiers = [
     "Typing :: Typed",
 ]
 
+[project.scripts]
+cane-format = "cane_format.cli:main"
+
 [project.urls]
 Paper = "https://aclanthology.org/2026.findings-emnlp.1398/"
 

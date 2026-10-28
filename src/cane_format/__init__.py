@@ -38,8 +38,10 @@ from cane_format.errors import (
     ParseIssue,
     UnrepresentableError,
 )
+from cane_format.evaluation import to_nervaluate
 from cane_format.json_format import format_json, iter_json, parse_json, read_json, write_json
 from cane_format.model import Concept, Document, Entity, Member, Relation, Segment, Span
+from cane_format.prompt import build_prompt, guideline
 from cane_format.xml_format import format_xml, iter_xml, parse_xml, read_xml, write_xml
 
 __all__ = [
@@ -63,6 +65,7 @@ __all__ = [
     "UnrepresentableError",
     "Variant",
     "align",
+    "build_prompt",
     "dumps",
     "format_bioc_json",
     "format_brat",
@@ -70,6 +73,7 @@ __all__ = [
     "format_json",
     "format_xml",
     "from_tokens",
+    "guideline",
     "iter_bioc_json",
     "iter_brat",
     "iter_conll",
@@ -86,6 +90,7 @@ __all__ = [
     "read_conll",
     "read_json",
     "read_xml",
+    "to_nervaluate",
     "write_bioc_json",
     "write_brat",
     "write_conll",

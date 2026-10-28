@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from cane_format._offsets import OffsetMap, OffsetUnit
-from cane_format._output import file_names
+from cane_format._output import document_name, file_names
 from cane_format._verify import covers, unit_hint
 from cane_format.errors import (
     CaneFormatError,
@@ -216,7 +216,7 @@ def write_brat(
     error leaves no partial output.
     """
     docs = list(docs)
-    stems = [name.removesuffix(".ann") for name in file_names(docs, ".ann")]
+    stems = file_names(docs, "")
     rendered = [format_brat(doc, offset_unit=offset_unit, lossy=lossy) for doc in docs]
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
@@ -302,7 +302,7 @@ def format_brat(
         dropped.append("document metadata")
     if dropped and lossy == "warn":
         warnings.warn(
-            f"document {doc.id}: brat cannot carry: " + "; ".join(dropped),
+            f"{document_name(doc)}: brat cannot carry: " + "; ".join(dropped),
             LossyConversionWarning,
             stacklevel=2,
         )

@@ -12,7 +12,7 @@ from os import PathLike
 from pathlib import Path
 from typing import Any
 
-from cane_format._output import Destination, write_text
+from cane_format._output import Destination, document_name, write_text
 from cane_format.errors import CaneFormatError, UnrepresentableError
 from cane_format.model import Concept, Document, Entity, Member, Relation, Segment, Span
 
@@ -63,7 +63,7 @@ def format_json(doc: Document, *, indent: int | None = None) -> str:
     try:
         return json.dumps(obj, ensure_ascii=False, indent=indent)
     except TypeError as err:
-        raise UnrepresentableError(f"document {doc.id}: metadata is not JSON: {err}") from err
+        raise UnrepresentableError(f"{document_name(doc)}: metadata is not JSON: {err}") from err
 
 
 # --- writing ------------------------------------------------------------------------------

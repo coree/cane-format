@@ -287,7 +287,7 @@ def test_cli_dash_is_stdout_or_an_error(
     assert not (tmp_path / "-").exists()
 
 
-@pytest.mark.parametrize("ids", [("a", "a"), ("a", "A"), ("../escape", "b"), (None, "1")])
+@pytest.mark.parametrize("ids", [("a", "a"), ("a", "A"), ("../escape", "b")])
 def test_cli_file_names_are_safe_and_unique(tmp_path: Path, ids: tuple[str | None, str]) -> None:
     docs = [
         cane.Document(text=d.text, entities=d.entities, id=i)
@@ -476,3 +476,87 @@ def test_whitespace_edged_spans_follow_the_strategy() -> None:
         assert cane.dumps(d, variant="base", on_unrepresentable="hull").splitlines()[1:] == [
             "`c` is a Y"
         ]
+
+
+# --- third review -------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("doc_id", ["a:b", "with space", " edge "])
+def test_brat_writes_back_what_it_can_read(tmp_path: Path, doc_id: str) -> None:
+    d = cane.Document(
+        text="Aspirin helps.", id=doc_id, entities=(Entity(spans=[(0, 7)], label="DRUG"),)
+    )
+    cane.write_brat([d], tmp_path)
+    assert cane.read_brat(tmp_path) == [d]
+    for unsafe in ("a/b", "..", ".", "a\\b"):
+        with pytest.raises(cane.UnrepresentableError):
+            cane.write_brat([cane.Document(text="x", id=unsafe)], tmp_path / "unsafe")
+
+
+def test_cli_stdout_is_utf8_whatever_the_console(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import io
+
+    src = _jsonl(
+        tmp_path / "d.jsonl",
+        cane.Document(
+            text="café au lait", id="c", entities=(Entity(spans=[(0, 4)], label="DRINK"),)
+        ),
+    )
+    console = io.TextIOWrapper(io.BytesIO(), encoding="ascii")
+    monkeypatch.setattr("sys.stdout", console)
+    assert main(["convert", str(src), "-", "--from", "json", "--to", "xml"]) == 0
+    written = console.buffer.getvalue().decode("utf-8")
+    assert '<?xml version="1.0" encoding="UTF-8"?>' in written
+    assert "<DRINK>café</DRINK> au lait" in written
+
+
+def test_warnings_for_documents_without_id() -> None:
+    d = cane.Document(text="a b", metadata={"x": 1}, entities=(Entity(spans=[(0, 1)], label="X"),))
+    writers: list[Callable[[], object]] = [
+        lambda: cane.format_brat(d),
+        lambda: cane.format_conll(d),
+        lambda: cane.format_xml(d),
+        lambda: cane.dumps(d, variant="base"),
+    ]
+    for write in writers:
+        with pytest.warns(cane.LossyConversionWarning) as record:
+            write()
+        assert str(record[0].message).startswith("document: ")
+
+
+def test_cli_unknown_encoding_is_a_user_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "x.conll").write_text("a O\n", encoding="utf-8")
+    assert (
+        main(
+            [
+                "convert",
+                str(tmp_path / "x.conll"),
+                "-",
+                "--from",
+                "conll",
+                "--to",
+                "json",
+                "--encoding",
+                "no-such-codec",
+            ]
+        )
+        == 2
+    )
+    assert "unknown encoding 'no-such-codec'" in capsys.readouterr().err
+
+
+def test_cli_numbers_unnamed_documents_around_existing_ids(tmp_path: Path) -> None:
+    docs = [
+        cane.Document(text=d.text, entities=d.entities, id=i)
+        for d, i in zip(DRUGS, (None, "1"), strict=True)
+    ]
+    src = _jsonl(tmp_path / "d.jsonl", *docs)
+    assert (
+        main(["convert", str(src), str(tmp_path / "c"), "--from", "json", "--to", "cane-base"]) == 0
+    )
+    assert sorted(p.name for p in (tmp_path / "c").iterdir()) == ["1.cane", "2.cane"]
+    assert b"\r" not in (tmp_path / "c" / "2.cane").read_bytes()

@@ -44,14 +44,18 @@ All notable changes to this project are documented here. The format follows
   every document, file names are safe and unique, `--labels` is trimmed, and the XML reading
   options, `--on-collision` and `--encoding` (parse) are available.
 - `CANE_REQUIRE_DATA=1` makes missing real test documents fail the run instead of skipping.
+- `on_unrepresentable="skip"` (and the other strategies) also skip entities whose label the
+  target cannot hold, instead of always raising.
+- Text verification shared by the brat and BioC readers (`_verify`).
+- CLI output to `-` is UTF-8 whatever the console encoding; documents without an ID get the
+  next free number; an unknown `--encoding` is reported before any file is read.
 
 ### Fixed
 - `guideline()` with `{` or `}` as quote characters.
 - CLI XML output dropped the `<documents>` wrapper and document IDs.
-
-- `on_unrepresentable="skip"` (and the other strategies) also skip entities whose label the
-  target cannot hold, instead of always raising.
-- Text verification shared by the brat and BioC readers (`_verify`).
+- `write_brat` refused IDs that `read_brat` produces (`:` and spaces are valid file names on
+  macOS and Linux); only path separators, NUL, `.` and `..` are refused.
+- Lossy warnings for documents without an ID read "document None" or "document :".
 
 ## [0.0.0]
 

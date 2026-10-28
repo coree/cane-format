@@ -12,7 +12,9 @@ from cane_format.model import Document
 
 Destination = str | PathLike[str] | IO[str]
 
-_UNSAFE = re.compile(r"[/\\:\x00]|^\.{1,2}$|^\s|\s$")
+# Path separators, NUL, "." and "..": unsafe on every system. Anything brat can read back
+# (":" or spaces on macOS and Linux) is allowed.
+_UNSAFE = re.compile(r"[/\\\x00]|^\.{1,2}$")
 
 
 def write_text(destination: Destination, content: str) -> None:
@@ -28,7 +30,8 @@ def file_names(docs: Sequence[Document], suffix: str) -> list[str]:
     """One safe, unique file name per document, from its ID.
 
     Raises before anything is written: a missing ID, an ID that is not a plain file name
-    (separators, ``..``, ``:``), or two IDs that would collide on a case-insensitive file system.
+    (path separators, NUL, ``.``, ``..``), or two IDs that would collide on a case-insensitive
+    file system.
     """
     names: list[str] = []
     seen: dict[str, str] = {}
@@ -45,6 +48,11 @@ def file_names(docs: Sequence[Document], suffix: str) -> list[str]:
         seen[key] = doc.id
         names.append(doc.id + suffix)
     return names
+
+
+def document_name(doc: Document) -> str:
+    """How warnings and errors refer to a document."""
+    return f"document {doc.id}" if doc.id else "document"
 
 
 def check(name: str, value: object, allowed: Collection[str]) -> None:

@@ -6,7 +6,7 @@ import re
 import warnings
 from typing import Literal
 
-from cane_format._output import check
+from cane_format._output import check, document_name
 from cane_format.dialect import ENGLISH, Dialect, Variant
 from cane_format.errors import LossyConversionWarning, UnrepresentableError
 from cane_format.model import Document, Entity, Span
@@ -75,14 +75,8 @@ def _writable_spans(
     text: str, entity: Entity, variant: Variant, strategy: OnUnrepresentable, dropped: list[str]
 ) -> tuple[Span, ...] | None:
     problem = None
+    repairable = False  # by first/hull; nothing repairs a label or whitespace-edged text
     edged = [p for p in entity.parts(text) if p != p.strip()]
-    # Problems no strategy can repair: the label, or text a model could never copy exactly.
-    unrepairable = (
-        entity.label is None
-        or not entity.label
-        or bool(_WHITESPACE.search(entity.label))
-        or bool(edged)
-    )
     if entity.label is None:
         problem = "has no label"
     elif not entity.label or _WHITESPACE.search(entity.label):
@@ -91,11 +85,12 @@ def _writable_spans(
         problem = f"has text {edged[0]!r} starting or ending with whitespace"
     elif len(entity.spans) > 1 and not variant.multi_part:
         problem = f"is discontinuous, which CANE-{variant.value.title()} cannot express"
+        repairable = True
     if problem is None:
         return entity.spans
     if strategy == "raise":
         raise UnrepresentableError(f"entity {entity.id} {problem}")
-    if strategy == "skip" or unrepairable:
+    if strategy == "skip" or not repairable:
         dropped.append(f"entity {entity.id} (skipped: {problem})")
         return None
     dropped.append(f"entity {entity.id} ({strategy}: {problem})")
@@ -183,11 +178,7 @@ def _warn_lossy(doc: Document, dropped: list[str]) -> None:
     lost = [f"{n} {what}" for what, n in counts.items() if n] + dropped
     if lost:
         warnings.warn(
-            f"{_name(doc)}: CANE cannot carry: " + "; ".join(lost),
+            f"{document_name(doc)}: CANE cannot carry: " + "; ".join(lost),
             LossyConversionWarning,
             stacklevel=3,
         )
-
-
-def _name(doc: Document) -> str:
-    return f"document {doc.id}" if doc.id else "document"

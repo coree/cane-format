@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Literal
 from xml.sax.saxutils import escape, quoteattr
 
-from cane_format._output import Destination, write_text
+from cane_format._output import Destination, document_name, write_text
 from cane_format.errors import CaneFormatError, LossyConversionWarning, UnrepresentableError
 from cane_format.model import Document, Entity, Segment, Span
 
@@ -291,7 +291,7 @@ def _warn_lossy(doc: Document) -> None:
         lost.append("metadata")
     if lost:
         warnings.warn(
-            f"document {doc.id or ''}: inline XML cannot carry: " + "; ".join(lost),
+            f"{document_name(doc)}: inline XML cannot carry: " + "; ".join(lost),
             LossyConversionWarning,
             stacklevel=3,
         )

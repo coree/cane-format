@@ -15,11 +15,12 @@ from os import PathLike
 from pathlib import Path
 from typing import Any, Literal
 
-from cane_format._output import Destination, check, write_text
+from cane_format._output import Destination, check, document_name, write_text
 from cane_format.errors import CaneFormatError, LossyConversionWarning, UnrepresentableError
 from cane_format.model import Document, Entity, Segment, Span
 
 Scheme = Literal["bio", "iob1", "bioes", "bilou"]
+SCHEMES: tuple[Scheme, ...] = ("bio", "iob1", "bioes", "bilou")
 Alignment = Literal["strict", "expand", "contract"]
 OnConflict = Literal["raise", "outermost", "innermost", "skip"]
 OnUnrepresentable = Literal["raise", "first", "hull", "split", "skip"]
@@ -113,6 +114,7 @@ def _parse(
     comment_prefix: str | None,
     prefix: str,
 ) -> Iterator[Document]:
+    check("scheme", scheme, SCHEMES)
     blocks = list(_documents(content, comment_prefix))
     if text is not None and len(blocks) != 1:
         raise CaneFormatError(f"text= needs exactly one document, found {len(blocks)}")
@@ -239,6 +241,7 @@ def from_tokens(
 
     Integer tags are looked up in ``label_names``.
     """
+    check("scheme", scheme, SCHEMES)
     if len(tokens) != len(tags):
         raise CaneFormatError(f"{len(tokens)} tokens but {len(tags)} tags")
     names = [label_names[t] if isinstance(t, int) else t for t in tags] if label_names else tags
@@ -303,7 +306,6 @@ def decode(
     tags: Sequence[tuple[int, str]], scheme: Scheme, repair: bool = False
 ) -> Iterator[tuple[str, int, int]]:
     """Turn ``(line number, tag)`` pairs into ``(label, first token, last token)`` entities."""
-    check("scheme", scheme, ("bio", "iob1", "bioes", "bilou"))
     open_label: str | None = None
     first = 0
 
@@ -406,7 +408,7 @@ def format_conll(
             or ``"skip"`` (all but raise warn; entities with label problems are skipped).
         lossy: ``"warn"`` once about information CoNLL cannot carry, or ``"ignore"``.
     """
-    check("scheme", scheme, ("bio", "iob1", "bioes", "bilou"))
+    check("scheme", scheme, SCHEMES)
     check("alignment", alignment, ("strict", "expand", "contract"))
     check("on_conflict", on_conflict, ("raise", "outermost", "innermost", "skip"))
     check("on_unrepresentable", on_unrepresentable, ("raise", "first", "hull", "split", "skip"))
@@ -578,7 +580,7 @@ def _warn_lossy(doc: Document, notes: list[str]) -> None:
         lost.append("the original whitespace between tokens")
     if lost:
         warnings.warn(
-            f"document {doc.id or ''}: CoNLL cannot carry: " + "; ".join(lost),
+            f"{document_name(doc)}: CoNLL cannot carry: " + "; ".join(lost),
             LossyConversionWarning,
             stacklevel=3,
         )

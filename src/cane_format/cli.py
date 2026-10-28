@@ -6,6 +6,8 @@ Exit codes: 0 success, 1 (``parse`` only) some lines could not be grounded, 2 er
 from __future__ import annotations
 
 import argparse
+import codecs
+import io
 import sys
 import warnings
 from collections.abc import Callable, Sequence
@@ -14,30 +16,29 @@ from pathlib import Path
 from typing import Any
 
 from cane_format import bioc, brat, conll, json_format, xml_format
-from cane_format._output import file_names
+from cane_format._output import file_names, write_text
 from cane_format._parser import loads
 from cane_format._writer import dumps
 from cane_format.dialect import Variant
-from cane_format.errors import CaneFormatError, LossyConversionWarning
+from cane_format.errors import CaneFormatError
 from cane_format.model import Document
 
 READERS = ("brat", "json", "conll", "bioc", "xml")
 WRITERS = (*READERS, *(f"cane-{v.value}" for v in Variant))
 DIRECTORY_TARGETS = ("brat", *(f"cane-{v.value}" for v in Variant))
-SCHEMES = ("bio", "iob1", "bioes", "bilou")
+SCHEMES = conll.SCHEMES
 UNITS = ("codepoint", "utf8", "utf16")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     with warnings.catch_warnings():
-        warnings.simplefilter("always", LossyConversionWarning)
-        warnings.simplefilter("always", UserWarning)
+        warnings.simplefilter("always", UserWarning)  # includes LossyConversionWarning
         warnings.showwarning = _show_warning
         try:
             code: int = args.run(args)
             return code
-        except (CaneFormatError, OSError, ValueError, LookupError) as err:
+        except (CaneFormatError, OSError, ValueError) as err:
             print(f"cane-format: error: {err}", file=sys.stderr)
             return 2
 
@@ -148,7 +149,7 @@ def _read(args: argparse.Namespace) -> list[Document]:
         "conll": lambda: conll.read_conll(
             args.input,
             scheme=args.scheme,
-            encoding=args.encoding,
+            encoding=_encoding(args.encoding),
             comment_prefix=args.comment_prefix,
         ),
         "bioc": lambda: bioc.read_bioc_json(
@@ -167,18 +168,60 @@ def _read(args: argparse.Namespace) -> list[Document]:
     return readers[args.source]()
 
 
+def _encoding(name: str) -> str:
+    """Check an --encoding value before any file is read."""
+    try:
+        codecs.lookup(name)
+    except LookupError:
+        raise ValueError(f"unknown encoding {name!r}") from None
+    return name
+
+
 def _with_ids(docs: list[Document]) -> list[Document]:
-    """Number documents without an ID, so every document can name its file."""
-    return [d if d.id else replace(d, id=str(n)) for n, d in enumerate(docs, 1)]
+    """Give documents without an ID the next free number, so every document can name a file."""
+    taken = {d.id.casefold() for d in docs if d.id}
+    named, n = [], 0
+    for d in docs:
+        if not d.id:
+            n += 1
+            while str(n) in taken:
+                n += 1
+            taken.add(str(n))
+            d = replace(d, id=str(n))
+        named.append(d)
+    return named
 
 
 def _write(docs: list[Document], target: str, output: str, args: argparse.Namespace) -> None:
     if target in DIRECTORY_TARGETS and output == "-":
         raise ValueError(f"{target} writes one file per document; give an output directory")
     unit = {"offset_unit": args.out_offset_unit} if args.out_offset_unit else {}
-    destination: Any = sys.stdout if output == "-" else output
+    if output == "-":
+        _to_stdout(lambda stream: _write_file(docs, target, stream, args, unit))
+    else:
+        _write_file(docs, target, output, args, unit)
+
+
+def _to_stdout(write: Callable[[Any], None]) -> None:
+    """Write UTF-8 to stdout whatever the console encoding, as files are written."""
+    buffer = getattr(sys.stdout, "buffer", None)
+    if buffer is None:  # already a text-only stream (e.g. replaced in tests)
+        write(sys.stdout)
+        return
+    sys.stdout.flush()
+    stream = io.TextIOWrapper(buffer, encoding="utf-8", newline="\n", write_through=True)
+    try:
+        write(stream)
+        stream.flush()
+    finally:
+        stream.detach()
+
+
+def _write_file(
+    docs: list[Document], target: str, destination: Any, args: argparse.Namespace, unit: Any
+) -> None:
     if target == "brat":
-        brat.write_brat(_with_ids(docs), output, **unit)
+        brat.write_brat(_with_ids(docs), destination, **unit)
     elif target.startswith("cane-"):
         docs = _with_ids(docs)
         names = file_names(docs, ".cane")
@@ -192,10 +235,10 @@ def _write(docs: list[Document], target: str, output: str, args: argparse.Namesp
             )
             for d in docs
         ]
-        directory = Path(output)
+        directory = Path(destination)
         directory.mkdir(parents=True, exist_ok=True)
         for name, text in zip(names, rendered, strict=True):
-            (directory / name).write_text(text + "\n", encoding="utf-8")
+            write_text(directory / name, text + "\n")
     elif target == "json":
         json_format.write_json(docs, destination)
     elif target == "conll":
@@ -219,9 +262,10 @@ def _convert(args: argparse.Namespace) -> int:
 
 
 def _parse(args: argparse.Namespace) -> int:
-    with open(args.text, encoding=args.encoding, newline="") as f:
+    encoding = _encoding(args.encoding)
+    with open(args.text, encoding=encoding, newline="") as f:
         text = f.read()
-    output = args.model_output.read_text(encoding=args.encoding)
+    output = args.model_output.read_text(encoding=encoding)
     result = loads(
         output,
         text=text,

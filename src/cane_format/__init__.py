@@ -22,6 +22,7 @@ from cane_format.errors import (
     ParseIssue,
     UnrepresentableError,
 )
+from cane_format.json_format import format_json, iter_json, parse_json, read_json, write_json
 from cane_format.model import Concept, Document, Entity, Member, Relation, Segment, Span
 
 __all__ = [
@@ -46,9 +47,14 @@ __all__ = [
     "Variant",
     "dumps",
     "format_brat",
+    "format_json",
     "iter_brat",
+    "iter_json",
     "loads",
     "parse_brat",
+    "parse_json",
     "read_brat",
+    "read_json",
     "write_brat",
+    "write_json",
 ]

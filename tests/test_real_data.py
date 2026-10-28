@@ -85,3 +85,13 @@ def test_unanchored_variants_in_reading_order(variant: str) -> None:
     # Misses are genuine ambiguity: unannotated occurrences of the same string (CRAFT).
     gold, exact, issues = _cane_round_trip(variant, "reading")
     assert exact / gold > 0.98 and issues == 0
+
+
+@pytest.mark.parametrize("corpus", corpora(), ids=lambda p: p.name)
+def test_json_round_trip(corpus: Path) -> None:
+    from tests.test_json import same
+
+    for d in cane.read_brat(corpus):
+        back = cane.parse_json(cane.format_json(d))
+        assert same(back, d)
+        assert cane.format_brat(back) == cane.format_brat(d)

@@ -1,0 +1,87 @@
+"""Real documents from public corpora (tests/data, kept out of git). Skipped when absent."""
+
+from __future__ import annotations
+
+import random
+import warnings
+from collections import Counter
+from pathlib import Path
+
+import pytest
+
+import cane_format as cane
+from tests.conftest import DATA, requires_data
+
+pytestmark = requires_data
+
+
+def corpora() -> list[Path]:
+    return sorted((DATA / "brat").iterdir()) if (DATA / "brat").is_dir() else []
+
+
+def all_docs() -> list[cane.Document]:
+    return [d for corpus in corpora() for d in cane.read_brat(corpus)]
+
+
+@pytest.mark.parametrize("corpus", corpora(), ids=lambda p: p.name)
+def test_reads_and_round_trips(corpus: Path) -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        docs = cane.read_brat(corpus)
+        for d in docs:
+            back = cane.parse_brat(d.text, cane.format_brat(d), id=d.id)
+            assert back.text == d.text and Counter(back.entities) == Counter(d.entities)
+            assert Counter(back.relations) == Counter(d.relations)
+
+            def content(x: cane.Document) -> dict[str | None, object]:
+                items: tuple[cane.Entity | cane.Relation, ...] = (*x.entities, *x.relations)
+                return {
+                    e.id: (getattr(e, "concepts", ()), dict(e.attributes), dict(e.metadata))
+                    for e in items
+                }
+
+            assert content(back) == content(d)
+
+
+def test_skewed_files_raise() -> None:
+    for txt in sorted((DATA / "invalid" / "bconv-skewed").glob("*.txt")):
+        with pytest.raises(cane.IntegrityError):
+            cane.read_brat(txt)
+
+
+def _cane_round_trip(variant: str, order: str) -> tuple[int, int, int]:
+    """(gold entities, exactly recovered, issues) over all real documents."""
+    gold_n = exact = issues = 0
+    for d in all_docs():
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", cane.LossyConversionWarning)
+            out = cane.dumps(d, variant=variant, on_unrepresentable="skip")
+        if out == "NONE":
+            continue
+        header, *lines = out.split("\n")
+        if order == "shuffled":
+            random.Random(0).shuffle(lines)
+        elif order == "by_label":
+            lines.sort(key=lambda line: line.rsplit(" a ", 1)[-1].split()[0])
+        gold = Counter(
+            e for e in d.entities if len(e.spans) == 1 or cane.Variant(variant).multi_part
+        )
+        result = cane.loads("\n".join([header, *lines]), text=d.text, variant=variant)
+        gold_n += sum(gold.values())
+        exact += sum((gold & Counter(result.entities)).values())
+        issues += len(result.issues)
+    return gold_n, exact, issues
+
+
+@pytest.mark.parametrize("variant", ["context", "full"])
+@pytest.mark.parametrize("order", ["reading", "by_label"])
+def test_anchored_variants_recover_everything(variant: str, order: str) -> None:
+    gold, exact, issues = _cane_round_trip(variant, order)
+    assert exact == gold and issues == 0
+
+
+@pytest.mark.parametrize("variant", ["base", "disco"])
+def test_unanchored_variants_in_reading_order(variant: str) -> None:
+    # Misses are genuine ambiguity: unannotated occurrences of the same string (CRAFT).
+    gold, exact, issues = _cane_round_trip(variant, "reading")
+    assert exact / gold > 0.98 and issues == 0

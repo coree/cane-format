@@ -1,0 +1,13 @@
+.DS_Store
+.vscode/
+__pycache__/
+*.pyc
+.vscode/
+.venv/
+dist/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+
+tests/data/

@@ -15,6 +15,7 @@ from os import PathLike
 from pathlib import Path
 from typing import Any, Literal
 
+from cane_format._output import Destination, check, write_text
 from cane_format.errors import CaneFormatError, LossyConversionWarning, UnrepresentableError
 from cane_format.model import Document, Entity, Segment, Span
 
@@ -302,6 +303,7 @@ def decode(
     tags: Sequence[tuple[int, str]], scheme: Scheme, repair: bool = False
 ) -> Iterator[tuple[str, int, int]]:
     """Turn ``(line number, tag)`` pairs into ``(label, first token, last token)`` entities."""
+    check("scheme", scheme, ("bio", "iob1", "bioes", "bilou"))
     open_label: str | None = None
     first = 0
 
@@ -371,10 +373,9 @@ def _split_tag(tag: str, n: int) -> tuple[str, str]:
 # --- writing ------------------------------------------------------------------------------
 
 
-def write_conll(docs: Iterable[Document], path: str | PathLike[str], **options: Any) -> None:
-    """Write documents to one CoNLL file. Options as for ``format_conll``."""
-    with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write("".join(format_conll(doc, **options) for doc in docs))
+def write_conll(docs: Iterable[Document], destination: Destination, **options: Any) -> None:
+    """Write documents to one CoNLL file or stream. Options as for ``format_conll``."""
+    write_text(destination, "".join(format_conll(doc, **options) for doc in docs))
 
 
 def format_conll(
@@ -405,6 +406,11 @@ def format_conll(
             or ``"skip"`` (all but raise warn; entities with label problems are skipped).
         lossy: ``"warn"`` once about information CoNLL cannot carry, or ``"ignore"``.
     """
+    check("scheme", scheme, ("bio", "iob1", "bioes", "bilou"))
+    check("alignment", alignment, ("strict", "expand", "contract"))
+    check("on_conflict", on_conflict, ("raise", "outermost", "innermost", "skip"))
+    check("on_unrepresentable", on_unrepresentable, ("raise", "first", "hull", "split", "skip"))
+    check("lossy", lossy, ("warn", "ignore"))
     notes: list[str] = []
     tokens = [s.span for s in doc.segments if s.kind == "token"]
     columns = {s.span: s.metadata.get(COLUMNS_KEY, ()) for s in doc.segments if s.kind == "token"}
@@ -572,5 +578,7 @@ def _warn_lossy(doc: Document, notes: list[str]) -> None:
         lost.append("the original whitespace between tokens")
     if lost:
         warnings.warn(
-            "CoNLL cannot carry: " + "; ".join(lost), LossyConversionWarning, stacklevel=3
+            f"document {doc.id or ''}: CoNLL cannot carry: " + "; ".join(lost),
+            LossyConversionWarning,
+            stacklevel=3,
         )

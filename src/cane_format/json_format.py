@@ -12,6 +12,7 @@ from os import PathLike
 from pathlib import Path
 from typing import Any
 
+from cane_format._output import Destination, write_text
 from cane_format.errors import CaneFormatError, UnrepresentableError
 from cane_format.model import Concept, Document, Entity, Member, Relation, Segment, Span
 
@@ -40,11 +41,9 @@ def iter_json(path: str | PathLike[str]) -> Iterator[Document]:
         yield _parse_object(whole, str(path))
 
 
-def write_json(docs: Iterable[Document], path: str | PathLike[str]) -> None:
-    """Write documents as JSON Lines, one document per line."""
-    with open(path, "w", encoding="utf-8", newline="\n") as f:
-        for doc in docs:
-            f.write(format_json(doc) + "\n")
+def write_json(docs: Iterable[Document], destination: Destination) -> None:
+    """Write documents as JSON Lines, one per line, to a path or an open text stream."""
+    write_text(destination, "".join(format_json(doc) + "\n" for doc in docs))
 
 
 def parse_json(content: str) -> Document:

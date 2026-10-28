@@ -73,6 +73,7 @@ def loads(
     handles: bool = False,
     dialect: Dialect = ENGLISH,
     options: ParseOptions | None = None,
+    id: str | None = None,
 ) -> ParseResult:
     """Parse CANE model output and ground every record in ``text``.
 
@@ -90,6 +91,7 @@ def loads(
         handles: Records carry handles (``T1 `x` is a L``), which become entity IDs.
         dialect: The surface vocabulary.
         options: All of the above as one ``ParseOptions``; excludes the other keywords.
+        id: The ID of the resulting document (e.g. needed to write it as brat).
     """
     if options is None:
         if variant is None:
@@ -119,7 +121,8 @@ def loads(
     entities, grounding_issues = _Grounder(text, options).ground(records)
     issues.extend(grounding_issues)
     issues.sort(key=lambda i: i.line_no or 0)
-    return ParseResult(Document(text=text, entities=tuple(entities)), tuple(issues), options)
+    document = Document(text=text, entities=tuple(entities), id=id)
+    return ParseResult(document, tuple(issues), options)
 
 
 # --- stage 1: records ---------------------------------------------------------------------

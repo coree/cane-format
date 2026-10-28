@@ -30,6 +30,25 @@ All notable changes to this project are documented here. The format follows
   output to any format; exits 1 when lines could not be grounded unless `--allow-issues`).
 
 ### Changed
+- `loads(..., id=)` sets the resulting document's ID (needed e.g. to write it as brat).
+- Text writers (`write_json`, `write_conll`, `write_bioc_json`, `write_xml`) accept a path or
+  an open text stream and render everything before writing; `write_brat` checks every file
+  name (unique, no path separators) and renders every document before writing anything.
+- Writers validate their option values (a misspelled strategy raises `ValueError`).
+- Lossy-conversion warnings name the document.
+- Entities whose text starts or ends with whitespace follow `on_unrepresentable` in `dumps`.
+- `build_prompt` sorts labels given as a set, omits the example section when there are no
+  examples, and requires labels then.
+- CLI rebuilt on the library writers: `-` means stdout (and is refused for brat and cane-*
+  directories), option values are fixed choices, every error exits 2, warnings are shown for
+  every document, file names are safe and unique, `--labels` is trimmed, and the XML reading
+  options, `--on-collision` and `--encoding` (parse) are available.
+- `CANE_REQUIRE_DATA=1` makes missing real test documents fail the run instead of skipping.
+
+### Fixed
+- `guideline()` with `{` or `}` as quote characters.
+- CLI XML output dropped the `<documents>` wrapper and document IDs.
+
 - `on_unrepresentable="skip"` (and the other strategies) also skip entities whose label the
   target cannot hold, instead of always raising.
 - Text verification shared by the brat and BioC readers (`_verify`).

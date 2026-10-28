@@ -6,6 +6,7 @@ import re
 import warnings
 from typing import Literal
 
+from cane_format._output import check
 from cane_format.dialect import ENGLISH, Dialect, Variant
 from cane_format.errors import LossyConversionWarning, UnrepresentableError
 from cane_format.model import Document, Entity, Span
@@ -47,13 +48,16 @@ def dumps(
         UnrepresentableError: An entity cannot be written and no strategy allows dropping it.
     """
     variant = Variant(variant)
+    check("on_unrepresentable", on_unrepresentable, ("raise", "skip", "first", "hull"))
+    check("on_collision", on_collision, ("raise", "ignore"))
+    check("lossy", lossy, ("warn", "ignore"))
     if context < 1:
         raise ValueError("context must be at least 1")
     dropped: list[str] = []
     records: list[str] = []
     ordered = sorted(doc.entities, key=lambda e: (e.start, -e.end, e.label or "", e.id or ""))
     for entity in ordered:
-        spans = _writable_spans(entity, variant, on_unrepresentable, dropped)
+        spans = _writable_spans(doc.text, entity, variant, on_unrepresentable, dropped)
         if spans is None:
             continue
         record = _record(doc.text, entity.label, spans, variant, context, dialect, on_collision)
@@ -68,20 +72,30 @@ def dumps(
 
 
 def _writable_spans(
-    entity: Entity, variant: Variant, strategy: OnUnrepresentable, dropped: list[str]
+    text: str, entity: Entity, variant: Variant, strategy: OnUnrepresentable, dropped: list[str]
 ) -> tuple[Span, ...] | None:
     problem = None
+    edged = [p for p in entity.parts(text) if p != p.strip()]
+    # Problems no strategy can repair: the label, or text a model could never copy exactly.
+    unrepairable = (
+        entity.label is None
+        or not entity.label
+        or bool(_WHITESPACE.search(entity.label))
+        or bool(edged)
+    )
     if entity.label is None:
         problem = "has no label"
     elif not entity.label or _WHITESPACE.search(entity.label):
         problem = f"has the label {entity.label!r}, which is not one token"
+    elif edged:
+        problem = f"has text {edged[0]!r} starting or ending with whitespace"
     elif len(entity.spans) > 1 and not variant.multi_part:
         problem = f"is discontinuous, which CANE-{variant.value.title()} cannot express"
     if problem is None:
         return entity.spans
     if strategy == "raise":
         raise UnrepresentableError(f"entity {entity.id} {problem}")
-    if strategy == "skip" or problem.startswith("has"):  # no strategy can repair a label
+    if strategy == "skip" or unrepairable:
         dropped.append(f"entity {entity.id} (skipped: {problem})")
         return None
     dropped.append(f"entity {entity.id} ({strategy}: {problem})")
@@ -168,4 +182,12 @@ def _warn_lossy(doc: Document, dropped: list[str]) -> None:
     }
     lost = [f"{n} {what}" for what, n in counts.items() if n] + dropped
     if lost:
-        warnings.warn("CANE cannot carry: " + "; ".join(lost), LossyConversionWarning, stacklevel=3)
+        warnings.warn(
+            f"{_name(doc)}: CANE cannot carry: " + "; ".join(lost),
+            LossyConversionWarning,
+            stacklevel=3,
+        )
+
+
+def _name(doc: Document) -> str:
+    return f"document {doc.id}" if doc.id else "document"

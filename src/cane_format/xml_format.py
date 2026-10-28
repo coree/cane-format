@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Literal
 from xml.sax.saxutils import escape, quoteattr
 
+from cane_format._output import Destination, write_text
 from cane_format.errors import CaneFormatError, LossyConversionWarning, UnrepresentableError
 from cane_format.model import Document, Entity, Segment, Span
 
@@ -193,14 +194,14 @@ def _merge(spans: list[Span]) -> list[Span]:
 # --- writing ------------------------------------------------------------------------------
 
 
-def write_xml(docs: Iterable[Document], path: str | PathLike[str], **options: Any) -> None:
-    """Write documents as ``<documents><document id=…>…</document>…</documents>``."""
-    with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(f'<?xml version="1.0" encoding="UTF-8"?>\n<{COLLECTION_TAG}>\n')
-        for doc in docs:
-            attr = f" id={quoteattr(doc.id)}" if doc.id else ""
-            f.write(f"<{DOCUMENT_TAG}{attr}>{format_xml(doc, **options)}</{DOCUMENT_TAG}>\n")
-        f.write(f"</{COLLECTION_TAG}>\n")
+def write_xml(docs: Iterable[Document], destination: Destination, **options: Any) -> None:
+    """Write ``<documents><document id=…>…</document>…</documents>`` to a path or stream."""
+    parts = [f'<?xml version="1.0" encoding="UTF-8"?>\n<{COLLECTION_TAG}>\n']
+    for doc in docs:
+        attr = f" id={quoteattr(doc.id)}" if doc.id else ""
+        parts.append(f"<{DOCUMENT_TAG}{attr}>{format_xml(doc, **options)}</{DOCUMENT_TAG}>\n")
+    parts.append(f"</{COLLECTION_TAG}>\n")
+    write_text(destination, "".join(parts))
 
 
 def format_xml(
@@ -290,5 +291,7 @@ def _warn_lossy(doc: Document) -> None:
         lost.append("metadata")
     if lost:
         warnings.warn(
-            "inline XML cannot carry: " + "; ".join(lost), LossyConversionWarning, stacklevel=3
+            f"document {doc.id or ''}: inline XML cannot carry: " + "; ".join(lost),
+            LossyConversionWarning,
+            stacklevel=3,
         )

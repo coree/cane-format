@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from cane_format._offsets import OffsetMap, OffsetUnit
+from cane_format._output import file_names
 from cane_format._verify import covers, unit_hint
 from cane_format.errors import (
     CaneFormatError,
@@ -209,15 +210,19 @@ def write_brat(
     offset_unit: OffsetUnit = "codepoint",
     lossy: Literal["warn", "ignore"] = "warn",
 ) -> None:
-    """Write each document as ``<id>.txt`` and ``<id>.ann`` into ``directory``."""
+    """Write each document as ``<id>.txt`` and ``<id>.ann`` into ``directory``.
+
+    Every file name is checked and every document rendered before anything is written, so an
+    error leaves no partial output.
+    """
+    docs = list(docs)
+    stems = [name.removesuffix(".ann") for name in file_names(docs, ".ann")]
+    rendered = [format_brat(doc, offset_unit=offset_unit, lossy=lossy) for doc in docs]
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
-    for doc in docs:
-        if not doc.id:
-            raise UnrepresentableError("brat needs a document id for the file name")
-        ann = format_brat(doc, offset_unit=offset_unit, lossy=lossy)
+    for stem, doc, ann in zip(stems, docs, rendered, strict=True):
         for suffix, content in ((".txt", doc.text), (".ann", ann)):
-            with open(directory / f"{doc.id}{suffix}", "w", encoding="utf-8", newline="") as f:
+            with open(directory / f"{stem}{suffix}", "w", encoding="utf-8", newline="") as f:
                 f.write(content)
 
 
@@ -297,7 +302,9 @@ def format_brat(
         dropped.append("document metadata")
     if dropped and lossy == "warn":
         warnings.warn(
-            "brat cannot carry: " + "; ".join(dropped), LossyConversionWarning, stacklevel=2
+            f"document {doc.id}: brat cannot carry: " + "; ".join(dropped),
+            LossyConversionWarning,
+            stacklevel=2,
         )
     out = [line for kind in "TER*AN#" for _, line in sorted(lines[kind], key=lambda x: x[0])]
     return "".join(f"{line}\n" for line in out)

@@ -46,9 +46,9 @@ output = your_llm(prompt)
 Path("raw/doc-17.cane").write_text(output)
 
 # 5. Parse it back into character spans. Problems never raise; they are reported.
-result = cane.loads(output, text=new_text, variant="full", labels={"DRUG", "ADR"})
+result = cane.loads(output, text=new_text, variant="full", labels={"DRUG", "ADR"}, id="doc-17")
 result.entities          # grounded entities with character offsets
-result.issues            # e.g. not_found: part 'fever' not found in the text (line 4)
+result.issues            # e.g. line 4: not_found: part 'fever' not found in the text
 
 # 6. Write the result out, e.g. as brat to inspect it in an annotation tool.
 cane.write_brat([result.document], "predictions/")

@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from cane_format._offsets import OffsetMap, OffsetUnit
+from cane_format._output import Destination, write_text
 from cane_format._verify import covers, unit_hint
 from cane_format.errors import (
     CaneFormatError,
@@ -387,10 +388,9 @@ def _thawed(value: Any) -> Any:
 # --- writing ------------------------------------------------------------------------------
 
 
-def write_bioc_json(docs: Iterable[Document], path: str | PathLike[str], **options: Any) -> None:
+def write_bioc_json(docs: Iterable[Document], destination: Destination, **options: Any) -> None:
     """Write documents as one BioC JSON collection. Options as for ``format_bioc_json``."""
-    with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(format_bioc_json(docs, **options))
+    write_text(destination, format_bioc_json(docs, **options) + "\n")
 
 
 def format_bioc_json(

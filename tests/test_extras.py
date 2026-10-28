@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
 import cane_format as cane
+from cane_format import Entity
 from cane_format.cli import main
 from tests.conftest import doc
 from tests.test_brat import ANN, TEXT
@@ -163,3 +165,314 @@ def test_cli_errors_are_reported(tmp_path: Path, capsys: pytest.CaptureFixture[s
     assert main(["convert", str(tmp_path / "bad.json"), "-", "--from", "json", "--to", "xml"]) == 2
     assert "error" in capsys.readouterr().err
     assert json.loads(json.dumps({"ok": True}))  # keeps json import used
+
+
+# --- review fixes ---------------------------------------------------------------------------
+
+
+def test_guideline_with_brace_delimiters() -> None:
+    text = cane.guideline("disco", dialect=cane.Dialect(quote_open="{", quote_close="}"))
+    assert "{entity} is a TYPE" in text and "{part1} and {part2} are a TYPE" in text
+    mixed = cane.guideline("base", dialect=cane.Dialect(quote_open="{", quote_close="»"))
+    assert "{entity» is a TYPE" in mixed
+
+
+def test_prompt_labels_are_reproducible_and_required() -> None:
+    a = cane.build_prompt("x", examples=[AMOX], variant="base", labels={"DRUG", "ADR"})
+    assert "Entities: ADR, DRUG\n" in a
+    assert "Entities: DRUG, ADR\n" in cane.build_prompt(
+        "x", examples=[AMOX], variant="base", labels=["DRUG", "ADR"]
+    )
+    zero_shot = cane.build_prompt("x", examples=[], variant="base", labels=["DRUG"])
+    assert "Examples:" not in zero_shot and zero_shot.endswith("---\nInput: x\nOutput:")
+    with pytest.raises(ValueError):
+        cane.build_prompt("x", examples=[], variant="base")
+
+
+def test_loads_sets_the_document_id(tmp_path: Path) -> None:
+    result = cane.loads(
+        cane.dumps(AMOX, variant="base"), text=AMOX.text, variant="base", id="doc-17"
+    )
+    assert result.document.id == "doc-17"
+    cane.write_brat([result.document], tmp_path)  # the README walkthrough's last step
+    assert (tmp_path / "doc-17.ann").exists()
+
+
+@pytest.mark.parametrize("strategy", ["skip", "first", "hull"])
+def test_strategies_skip_label_problems(strategy: str) -> None:
+    d = doc("a b c", (None, [(0, 1)]), ("TWO WORDS", [(2, 3)]), ("OK", [(4, 5)]))
+    with pytest.warns(cane.LossyConversionWarning, match="skipped") as record:
+        out = cane.dumps(d, variant="base", on_unrepresentable=strategy)  # type: ignore[arg-type]
+    assert out.splitlines()[1:] == ["`c` is a OK"]
+    assert "None" not in out and str(record[0].message).startswith("document")
+
+
+@pytest.mark.parametrize("strategy", ["skip", "first", "hull", "split"])
+def test_conll_strategies_skip_label_problems(strategy: str) -> None:
+    d = doc("a b c", (None, [(0, 1)]), ("TWO WORDS", [(2, 3)]), ("OK", [(4, 5)]))
+    with pytest.warns(cane.LossyConversionWarning, match="skipped"):
+        out = cane.format_conll(d, on_unrepresentable=strategy)  # type: ignore[arg-type]
+    assert out == "a O\nb O\nc B-OK\n\n"
+
+
+def test_lossy_warnings_name_the_document() -> None:
+    d = cane.Document(
+        text="a b",
+        id="doc-9",
+        metadata={"source": "x"},
+        entities=(Entity(spans=[(0, 1)], label="X"),),
+    )
+    writers: list[Callable[[], object]] = [
+        lambda: cane.dumps(d, variant="base"),
+        lambda: cane.format_brat(d),
+        lambda: cane.format_conll(d),
+        lambda: cane.format_xml(d),
+    ]
+    for write in writers:
+        with pytest.warns(cane.LossyConversionWarning, match="document doc-9"):
+            write()
+
+
+# --- CLI review fixes ---------------------------------------------------------------------
+
+
+def _jsonl(path: Path, *docs: cane.Document) -> Path:
+    cane.write_json(docs, path)
+    return path
+
+
+DRUGS = [
+    cane.Document(text="Aspirin helps.", id="a", entities=(Entity(spans=[(0, 7)], label="DRUG"),)),
+    cane.Document(
+        text="Ibuprofen hurts.", id="b", entities=(Entity(spans=[(0, 9)], label="DRUG"),)
+    ),
+]
+
+
+def test_cli_xml_keeps_documents_and_ids(tmp_path: Path) -> None:
+    src = _jsonl(tmp_path / "d.jsonl", *DRUGS)
+    assert (
+        main(["convert", str(src), str(tmp_path / "o.xml"), "--from", "json", "--to", "xml"]) == 0
+    )
+    assert (
+        main(
+            [
+                "convert",
+                str(tmp_path / "o.xml"),
+                str(tmp_path / "back.jsonl"),
+                "--from",
+                "xml",
+                "--to",
+                "json",
+            ]
+        )
+        == 0
+    )
+    assert cane.read_json(tmp_path / "back.jsonl") == DRUGS
+
+
+def test_cli_dash_is_stdout_or_an_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    src = _jsonl(tmp_path / "d.jsonl", *DRUGS)
+    for target in ("cane-full", "brat"):
+        assert main(["convert", str(src), "-", "--from", "json", "--to", target]) == 2
+    assert not (tmp_path / "-").exists()
+    assert main(["convert", str(src), "-", "--from", "json", "--to", "conll"]) == 0
+    assert "Aspirin B-DRUG" in capsys.readouterr().out
+    (tmp_path / "t.txt").write_text("Aspirin helps.", encoding="utf-8")
+    (tmp_path / "m.cane").write_text("`Aspirin` is a DRUG", encoding="utf-8")
+    assert main(["parse", "m.cane", "--text", "t.txt", "--variant", "base", "--to", "brat"]) == 2
+    assert not (tmp_path / "-").exists()
+
+
+@pytest.mark.parametrize("ids", [("a", "a"), ("a", "A"), ("../escape", "b"), (None, "1")])
+def test_cli_file_names_are_safe_and_unique(tmp_path: Path, ids: tuple[str | None, str]) -> None:
+    docs = [
+        cane.Document(text=d.text, entities=d.entities, id=i)
+        for d, i in zip(DRUGS, ids, strict=True)
+    ]
+    src = _jsonl(tmp_path / "d.jsonl", *docs)
+    for target in ("cane-base", "brat"):
+        out = tmp_path / target
+        assert main(["convert", str(src), str(out), "--from", "json", "--to", target]) == 2
+        assert not out.exists()
+    assert not (tmp_path / "escape.cane").exists()
+
+
+def test_cli_rejects_unknown_and_inapplicable_options(tmp_path: Path) -> None:
+    src = _jsonl(tmp_path / "d.jsonl", *DRUGS)
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "convert",
+                str(src),
+                "-",
+                "--from",
+                "json",
+                "--to",
+                "conll",
+                "--on-conflict",
+                "outermsot",
+            ]
+        )
+    assert (
+        main(
+            [
+                "convert",
+                str(src),
+                str(tmp_path / "c"),
+                "--from",
+                "json",
+                "--to",
+                "cane-base",
+                "--on-unrepresentable",
+                "split",
+            ]
+        )
+        == 2
+    )
+    assert (
+        main(
+            [
+                "convert",
+                str(src),
+                str(tmp_path / "c"),
+                "--from",
+                "json",
+                "--to",
+                "cane-full",
+                "--context",
+                "0",
+            ]
+        )
+        == 2
+    )
+
+
+def test_cli_errors_never_exit_like_issues(tmp_path: Path) -> None:
+    (tmp_path / "t.txt").write_bytes(b"caf\xe9")
+    (tmp_path / "m.cane").write_text("NONE", encoding="utf-8")
+    args = [
+        "parse",
+        str(tmp_path / "m.cane"),
+        "--text",
+        str(tmp_path / "t.txt"),
+        "--variant",
+        "base",
+    ]
+    assert main(args) == 2
+    assert main([*args, "--encoding", "latin-1"]) == 0
+    assert main([*args, "--encoding", "no-such-codec"]) == 2
+
+
+def test_cli_warns_for_every_document(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    disco = [
+        cane.Document(
+            text="a b c", id=f"x{n}", entities=(Entity(spans=[(0, 1), (4, 5)], label="X"),)
+        )
+        for n in range(3)
+    ]
+    src = _jsonl(tmp_path / "d.jsonl", *disco)
+    assert (
+        main(
+            [
+                "convert",
+                str(src),
+                str(tmp_path / "c"),
+                "--from",
+                "json",
+                "--to",
+                "cane-base",
+                "--on-unrepresentable",
+                "skip",
+            ]
+        )
+        == 0
+    )
+    err = capsys.readouterr().err
+    assert all(f"document x{n}" in err for n in range(3))
+
+
+def test_cli_brat_writes_nothing_on_error(tmp_path: Path) -> None:
+    bad = cane.Document(text="ab", id="c", entities=(Entity(spans=[(0, 1)]),))
+    src = _jsonl(tmp_path / "d.jsonl", *DRUGS, bad)
+    assert main(["convert", str(src), str(tmp_path / "b"), "--from", "json", "--to", "brat"]) == 2
+    assert not (tmp_path / "b").exists()
+
+
+def test_cli_labels_are_trimmed(tmp_path: Path) -> None:
+    (tmp_path / "t.txt").write_text("Aspirin helps.", encoding="utf-8")
+    (tmp_path / "m.cane").write_text("`Aspirin` is a DRUG\n`helps` is a ADR", encoding="utf-8")
+    assert (
+        main(
+            [
+                "parse",
+                str(tmp_path / "m.cane"),
+                "--text",
+                str(tmp_path / "t.txt"),
+                "--variant",
+                "base",
+                "--labels",
+                "DRUG, ADR",
+                "-o",
+                str(tmp_path / "o.jsonl"),
+            ]
+        )
+        == 0
+    )
+
+
+def test_cli_on_collision(tmp_path: Path) -> None:
+    code = cane.Document(
+        text="use `x` now", id="c", entities=(Entity(spans=[(4, 7)], label="CODE"),)
+    )
+    src = _jsonl(tmp_path / "d.jsonl", code)
+    args = ["convert", str(src), str(tmp_path / "c"), "--from", "json", "--to", "cane-base"]
+    assert main(args) == 2
+    assert main([*args, "--on-collision", "ignore"]) == 0
+
+
+def test_cli_xml_structure_options(tmp_path: Path) -> None:
+    (tmp_path / "g.xml").write_text(
+        "<set><article><info>PMID:1</info><s>A <cons sem='X'>term</cons>.</s></article></set>",
+        encoding="utf-8",
+    )
+    assert (
+        main(
+            [
+                "convert",
+                str(tmp_path / "g.xml"),
+                str(tmp_path / "o.jsonl"),
+                "--from",
+                "xml",
+                "--to",
+                "json",
+                "--tag",
+                "cons",
+                "--type-attr",
+                "sem",
+                "--document-tag",
+                "article",
+                "--exclude-tags",
+                "info",
+                "--segment-tags",
+                "s",
+            ]
+        )
+        == 0
+    )
+    (d,) = cane.read_json(tmp_path / "o.jsonl")
+    assert d.text == "A term." and d.metadata["info"] == "PMID:1"
+    assert [s.kind for s in d.segments] == ["s"]
+
+
+def test_whitespace_edged_spans_follow_the_strategy() -> None:
+    d = doc("a b c", ("X", [(1, 3)]), ("Y", [(4, 5)]))  # " b" starts with a space
+    with pytest.raises(cane.UnrepresentableError, match="whitespace"):
+        cane.dumps(d, variant="base")
+    with pytest.warns(cane.LossyConversionWarning, match="whitespace"):
+        assert cane.dumps(d, variant="base", on_unrepresentable="hull").splitlines()[1:] == [
+            "`c` is a Y"
+        ]

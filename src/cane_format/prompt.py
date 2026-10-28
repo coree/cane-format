@@ -27,8 +27,11 @@ def guideline(
     """The format instructions for one CANE variant, worded with the dialect's tokens."""
     v = Variant(variant)
     d = dialect
-    q = d.quote_open + "{}" + d.quote_close
-    one = f"{q.format('entity')} {d.copula_singular} {d.articles[0]} TYPE"
+
+    def q(word: str) -> str:
+        return d.quote_open + word + d.quote_close
+
+    one = f"{q('entity')} {d.copula_singular} {d.articles[0]} TYPE"
     words = "word" if context == 1 else f"{context} words"
     lines = [
         f"Start the output with the line '{d.header}', then write one line per entity.",
@@ -42,7 +45,7 @@ def guideline(
             f"neighbouring {words} on each side."
         )
     if v.multi_part:
-        parts = f"{q.format('part1')} {d.part_connective} {q.format('part2')}"
+        parts = f"{q('part1')} {d.part_connective} {q('part2')}"
         line = (
             f"An entity made of separate parts is written as {parts} "
             f"{d.copula_plural} {d.articles[0]} TYPE, with the parts in text order"
@@ -86,12 +89,19 @@ def build_prompt(
         text: The text to annotate.
         examples: Annotated documents shown as few-shot examples.
         variant: The CANE variant.
-        labels: The entity types, in the order to list them; by default the examples' labels.
+        labels: The entity types in the order to list them (a set is sorted); by default
+            the examples' labels, sorted. Required when there are no examples.
         context, handles, on_unrepresentable, lossy, dialect: As for ``dumps``.
     """
     v = Variant(variant)
     if labels is None:
-        labels = sorted({e.label for d in examples for e in d.entities if e.label is not None})
+        names = sorted({e.label for d in examples for e in d.entities if e.label is not None})
+    elif isinstance(labels, (set, frozenset)):
+        names = sorted(labels)  # sets have no stable order; prompts must be reproducible
+    else:
+        names = list(labels)
+    if not names:
+        raise ValueError("build_prompt needs labels= or examples with labelled entities")
     shots = [
         f"Input: {d.text}\nOutput:\n"
         + dumps(
@@ -108,12 +118,11 @@ def build_prompt(
     return "\n\n".join(
         [
             "Task: Named Entity Recognition",
-            "Entities: " + ", ".join(labels),
+            "Entities: " + ", ".join(names),
             f"Format: CANE-{v.value.title()}\n"
             f"Guidelines: {guideline(v, context=context, handles=handles, dialect=dialect)}",
             _IMPORTANT,
-            "Examples:",
-            "\n\n".join(shots),
+            *(["Examples:", "\n\n".join(shots)] if shots else []),
             f"---\nInput: {text}\nOutput:",
         ]
     )

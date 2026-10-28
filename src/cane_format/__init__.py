@@ -40,6 +40,7 @@ from cane_format.errors import (
 )
 from cane_format.json_format import format_json, iter_json, parse_json, read_json, write_json
 from cane_format.model import Concept, Document, Entity, Member, Relation, Segment, Span
+from cane_format.xml_format import format_xml, iter_xml, parse_xml, read_xml, write_xml
 
 __all__ = [
     "ENGLISH",
@@ -67,22 +68,27 @@ __all__ = [
     "format_brat",
     "format_conll",
     "format_json",
+    "format_xml",
     "from_tokens",
     "iter_bioc_json",
     "iter_brat",
     "iter_conll",
     "iter_json",
+    "iter_xml",
     "loads",
     "parse_bioc_json",
     "parse_brat",
     "parse_conll",
     "parse_json",
+    "parse_xml",
     "read_bioc_json",
     "read_brat",
     "read_conll",
     "read_json",
+    "read_xml",
     "write_bioc_json",
     "write_brat",
     "write_conll",
     "write_json",
+    "write_xml",
 ]

@@ -20,6 +20,9 @@ All notable changes to this project are documented here. The format follows
 - BioC JSON (UTF-8 byte offsets by default; passages placed at their offsets; passage, sentence
   and document-level annotations; trigger nodes; PubTator3 exports): `read_bioc_json`,
   `iter_bioc_json`, `parse_bioc_json`, `write_bioc_json`, `format_bioc_json`.
+- Inline XML (label as element name, or a generic element with a type attribute; refs for
+  discontinuous and crossing entities; always well-formed; reads corpora such as GENIA with
+  structural markup): `read_xml`, `iter_xml`, `parse_xml`, `write_xml`, `format_xml`.
 
 ### Changed
 - Text verification shared by the brat and BioC readers (`_verify`).

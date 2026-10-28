@@ -154,3 +154,30 @@ def test_bioc_files_round_trip_identically(path: Path) -> None:
         original = {"documents": original["PubTator3"]}
     ours = json.loads(cane.format_bioc_json(docs))
     assert _norm(ours["documents"]) == _norm(original["documents"])
+
+
+GENIA = DATA / "xml" / "genia" / "genia-term-3.02-first-20.xml"
+GENIA_OPTIONS = {
+    "tag": "cons",
+    "type_attr": "sem",
+    "document_tag": "article",
+    "segment_tags": ("title", "abstract", "sentence"),
+    "exclude_tags": ("articleinfo",),
+}
+
+
+@pytest.mark.skipif(not GENIA.exists(), reason="GENIA sample not present")
+def test_genia_inline_xml() -> None:
+    import re
+
+    docs = cane.read_xml(GENIA, **GENIA_OPTIONS)
+    assert len(docs) == 20
+    assert sum(len(d.entities) for d in docs) == len(re.findall(r"<cons\b", GENIA.read_text()))
+    assert any(e.label is None for d in docs for e in d.entities)  # coordination parts
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", cane.LossyConversionWarning)
+        for d in docs:
+            (again,) = cane.parse_xml(
+                cane.format_xml(d, tag="cons", type_attr="sem"), tag="cons", type_attr="sem"
+            )
+            assert again.text == d.text and set(again.entities) == set(d.entities)

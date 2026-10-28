@@ -227,3 +227,19 @@ def test_generated_tag_sequences_round_trip(pairs: list[tuple[str, str]], scheme
     out = cane.format_conll(d, scheme=scheme)  # type: ignore[arg-type]
     back = cane.parse_conll(out, scheme=scheme)[0]  # type: ignore[arg-type]
     assert back.entities == d.entities and back.text == d.text
+
+
+def test_comment_lines_mark_documents() -> None:
+    content = "# doc_id = 42\n# source = test\nA B-X\nb E-X\n\n# doc_id = 43\nc S-Y\n"
+    docs = cane.parse_conll(content, scheme="bioes", comment_prefix="#")
+    assert [d.id for d in docs] == ["42", "43"]
+    assert docs[0].metadata["conll_comments"] == ("# doc_id = 42", "# source = test")
+    assert cane.format_conll(docs[0], scheme="bioes").startswith("# doc_id = 42\n# source")
+    with pytest.raises(cane.CaneFormatError):
+        cane.parse_conll(content, scheme="bioes")  # without comment_prefix, '#' is a token
+
+
+def test_encoding(tmp_path: Path) -> None:
+    path = tmp_path / "latin1.conll"
+    path.write_bytes("Málaga B-LOC\n".encode("latin-1"))
+    assert labelled(cane.read_conll(path, encoding="latin-1")[0]) == [("LOC", "Málaga")]

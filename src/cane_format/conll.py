@@ -26,6 +26,7 @@ Tokenizer = Callable[[str], Iterable[tuple[int, int]]]
 
 RECONSTRUCTED = "text_reconstructed"
 DOCSTART_KEY = "conll_docstart"
+COMMENTS_KEY = "conll_comments"
 COLUMNS_KEY = "columns"
 _DOCSTART = "-DOCSTART-"
 _TOKEN = re.compile(r"\w+|[^\w\s]")
@@ -47,9 +48,20 @@ def read_conll(
     scheme: Scheme = "bio",
     repair: bool = False,
     text: str | None = None,
+    encoding: str = "utf-8",
+    comment_prefix: str | None = None,
 ) -> list[Document]:
-    """Read a CoNLL file. See ``parse_conll``."""
-    return list(iter_conll(path, scheme=scheme, repair=repair, text=text))
+    """Read a CoNLL file. See ``parse_conll``; ``encoding`` is the file's text encoding."""
+    return list(
+        iter_conll(
+            path,
+            scheme=scheme,
+            repair=repair,
+            text=text,
+            encoding=encoding,
+            comment_prefix=comment_prefix,
+        )
+    )
 
 
 def iter_conll(
@@ -58,11 +70,13 @@ def iter_conll(
     scheme: Scheme = "bio",
     repair: bool = False,
     text: str | None = None,
+    encoding: str = "utf-8",
+    comment_prefix: str | None = None,
 ) -> Iterator[Document]:
     """Like ``read_conll``, yielding documents one at a time."""
     path = Path(path)
-    content = path.read_text(encoding="utf-8")
-    yield from _parse(content, scheme, repair, text, prefix=f"{path.stem}-")
+    content = path.read_text(encoding=encoding)
+    yield from _parse(content, scheme, repair, text, comment_prefix, prefix=f"{path.stem}-")
 
 
 def parse_conll(
@@ -71,6 +85,7 @@ def parse_conll(
     scheme: Scheme = "bio",
     repair: bool = False,
     text: str | None = None,
+    comment_prefix: str | None = None,
 ) -> list[Document]:
     """Build documents from CoNLL content.
 
@@ -81,67 +96,97 @@ def parse_conll(
             there, instead of raising.
         text: The true raw text, if known. Tokens are aligned onto it (only whitespace may lie
             between them) and offsets refer to it. Only for content with exactly one document.
+        comment_prefix: Treat lines starting with this prefix (e.g. ``"#"``) as comments. A
+            comment ``doc_id = X`` or ``newdoc id = X`` starts a new document with ID ``X``; other
+            comments are kept in ``metadata["conll_comments"]``. Off by default, since ``#``
+            can also be a token.
     """
-    return list(_parse(content, scheme, repair, text, prefix=""))
+    return list(_parse(content, scheme, repair, text, comment_prefix, prefix=""))
 
 
 def _parse(
-    content: str, scheme: Scheme, repair: bool, text: str | None, prefix: str
+    content: str,
+    scheme: Scheme,
+    repair: bool,
+    text: str | None,
+    comment_prefix: str | None,
+    prefix: str,
 ) -> Iterator[Document]:
-    blocks = list(_documents(content))
+    blocks = list(_documents(content, comment_prefix))
     if text is not None and len(blocks) != 1:
         raise CaneFormatError(f"text= needs exactly one document, found {len(blocks)}")
-    for n, (docstart, sentences) in enumerate(blocks, 1):
-        doc = _build(sentences, docstart, scheme, repair, f"{prefix}{n}")
+    for n, block in enumerate(blocks, 1):
+        doc = _build(block, scheme, repair, block.doc_id or f"{prefix}{n}")
         yield doc if text is None else align(doc, text)
 
 
 _Line = tuple[int, list[str]]  # (line number, columns)
+_DOC_ID = re.compile(r"(?:doc_id|newdoc id)\s*=\s*(\S.*)")
 
 
-def _documents(content: str) -> Iterator[tuple[str | None, list[list[_Line]]]]:
+class _Block:
+    def __init__(self, docstart: str | None = None, doc_id: str | None = None) -> None:
+        self.docstart, self.doc_id = docstart, doc_id
+        self.comments: list[str] = []
+        self.sentences: list[list[_Line]] = []
+
+
+def _documents(content: str, comment_prefix: str | None) -> Iterator[_Block]:
     """Split content into documents of sentences of token lines."""
-    has_docstart = any(line.split()[:1] == [_DOCSTART] for line in content.splitlines())
-    docstart: str | None = None
-    sentences: list[list[_Line]] = []
+    lines = content.splitlines()
+
+    def is_comment(line: str) -> bool:
+        return comment_prefix is not None and line.startswith(comment_prefix)
+
+    def doc_id(line: str) -> str | None:
+        assert comment_prefix is not None
+        m = _DOC_ID.fullmatch(line[len(comment_prefix) :].strip())
+        return m[1].strip() if m else None
+
+    explicit = any(
+        line.split()[:1] == [_DOCSTART] or (is_comment(line) and doc_id(line)) for line in lines
+    )
+    block: _Block | None = None if explicit else _Block()
     current: list[_Line] = []
-    started = False
-    for n, line in enumerate(content.splitlines(), 1):
+
+    def close_sentence() -> None:
+        nonlocal current
+        if current:
+            if block is None:
+                raise CaneFormatError(f"line {current[0][0]}: tokens before the first document")
+            block.sentences.append(current)
+            current = []
+
+    for n, line in enumerate(lines, 1):
         columns = line.split()
-        if columns[:1] == [_DOCSTART]:
-            if current:
-                sentences.append(current)
-                current = []
-            if started:
-                yield docstart, sentences
-            docstart, sentences, started = line.strip(), [], True
+        new_id = doc_id(line) if is_comment(line) else None
+        if columns[:1] == [_DOCSTART] or new_id is not None:
+            close_sentence()
+            if block is not None and (block.sentences or block.comments):
+                yield block
+            block = _Block(docstart=line.strip() if new_id is None else None, doc_id=new_id)
+            if new_id is not None:
+                block.comments.append(line)
+        elif is_comment(line):
+            if block is None:
+                block = _Block()
+            block.comments.append(line)
         elif not columns:
-            if current:
-                sentences.append(current)
-                current = []
-                if not has_docstart:
-                    yield None, sentences
-                    sentences = []
+            close_sentence()
+            if not explicit and block is not None and block.sentences:
+                yield block
+                block = _Block()
         else:
             if len(columns) < 2:
                 raise CaneFormatError(f"line {n}: expected a token and a tag: {line!r}")
             current.append((n, columns))
-    if current:
-        sentences.append(current)
-    if has_docstart:
-        if started:
-            yield docstart, sentences
-    elif sentences:
-        yield None, sentences
+    close_sentence()
+    if block is not None and (block.sentences or (explicit and block.docstart)):
+        yield block
 
 
-def _build(
-    sentences: list[list[_Line]],
-    docstart: str | None,
-    scheme: Scheme,
-    repair: bool,
-    doc_id: str | None,
-) -> Document:
+def _build(block: _Block, scheme: Scheme, repair: bool, doc_id: str | None) -> Document:
+    sentences = block.sentences
     text_parts: list[str] = []
     segments: list[Segment] = []
     entities: list[Entity] = []
@@ -167,8 +212,10 @@ def _build(
         for label, first, last in decode(tags, scheme, repair):
             entities.append(Entity(spans=[(bounds[first][0], bounds[last][1])], label=label))
     metadata: dict[str, Any] = {RECONSTRUCTED: True}
-    if docstart is not None:
-        metadata[DOCSTART_KEY] = docstart
+    if block.docstart is not None:
+        metadata[DOCSTART_KEY] = block.docstart
+    if block.comments:
+        metadata[COMMENTS_KEY] = tuple(block.comments)
     return Document(
         text="".join(text_parts),
         entities=entities,
@@ -199,7 +246,9 @@ def from_tokens(
     sentence = [
         (i + 1, [tok, str(tag)]) for i, (tok, tag) in enumerate(zip(tokens, names, strict=True))
     ]
-    return _build([sentence], None, scheme, repair, id)
+    block = _Block()
+    block.sentences.append(sentence)
+    return _build(block, scheme, repair, id)
 
 
 def align(doc: Document, text: str) -> Document:
@@ -391,6 +440,7 @@ def format_conll(
     docstart = doc.metadata.get(DOCSTART_KEY)
     if docstart:
         out += [str(docstart), ""]
+    out += [str(c) for c in doc.metadata.get(COMMENTS_KEY, ())]
     by_sentence: list[list[int]] = [[] for _ in sentences]
     for t_index, s_index in enumerate(sentence_of):
         by_sentence[s_index].append(t_index)
@@ -515,7 +565,7 @@ def _warn_lossy(doc: Document, notes: list[str]) -> None:
     other = [s for s in doc.segments if s.kind not in ("token", "sentence")]
     if other:
         lost.append(f"{len(other)} other segments")
-    extra = set(doc.metadata) - {RECONSTRUCTED, DOCSTART_KEY}
+    extra = set(doc.metadata) - {RECONSTRUCTED, DOCSTART_KEY, COMMENTS_KEY}
     if extra or any(e.metadata for e in doc.entities):
         lost.append("metadata")
     if not doc.metadata.get(RECONSTRUCTED) and doc.text:

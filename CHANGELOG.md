@@ -15,7 +15,8 @@ All notable changes to this project are documented here. The format follows
 - Offset JSON (lossless, JSON Lines for collections): `read_json`, `iter_json`, `parse_json`,
   `write_json`, `format_json`.
 - CoNLL / IOB (BIO, IOB1, BIOES, BILOU): `read_conll`, `iter_conll`, `parse_conll`,
-  `write_conll`, `format_conll`, `from_tokens` (Hugging Face style), `align` (onto raw text).
+  `write_conll`, `format_conll`, `from_tokens` (Hugging Face style), `align` (onto raw text);
+  `encoding=` and opt-in `comment_prefix=` (CoNLL-U style `# doc_id = …` lines).
 
 ## [0.0.0]
 

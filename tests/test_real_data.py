@@ -95,3 +95,30 @@ def test_json_round_trip(corpus: Path) -> None:
         back = cane.parse_json(cane.format_json(d))
         assert same(back, d)
         assert cane.format_brat(back) == cane.format_brat(d)
+
+
+CONLL_FILES = [
+    ("bconv", "bioes", "#"),
+    ("conll-2002", "bio", None),
+    ("wnut-17", "bio", None),
+]
+
+
+def conll_files() -> list[tuple[Path, str, str | None]]:
+    return [
+        (f, scheme, comment)
+        for folder, scheme, comment in CONLL_FILES
+        for f in sorted((DATA / "conll" / folder).glob("*"))
+        if (DATA / "conll").is_dir() and f.name not in ("LICENSE", "README")
+    ]
+
+
+@pytest.mark.parametrize(("path", "scheme", "comment"), conll_files(), ids=lambda x: str(x))
+def test_conll_files_round_trip(path: Path, scheme: str, comment: str | None) -> None:
+    docs = cane.read_conll(path, scheme=scheme, comment_prefix=comment)  # type: ignore[arg-type]
+    assert docs and all(d.metadata["text_reconstructed"] for d in docs)
+    out = "".join(cane.format_conll(d, scheme=scheme) for d in docs)  # type: ignore[arg-type]
+    original = [line.split() for line in path.read_text(encoding="utf-8").splitlines()]
+    assert [c for c in original if c] == [line.split() for line in out.splitlines() if line]
+    again = cane.parse_conll(out, scheme=scheme, comment_prefix=comment)  # type: ignore[arg-type]
+    assert [d.entities for d in again] == [d.entities for d in docs]

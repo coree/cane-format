@@ -435,6 +435,18 @@ def test_cli_on_mismatch(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> 
     assert "parses back elsewhere" in capsys.readouterr().err
 
 
+def test_cli_checks_with_the_parse_settings(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    d = cane.Document(text="Rash rash", id="r", entities=(Entity(spans=[(5, 9)], label="S"),))
+    src = _jsonl(tmp_path / "d.jsonl", d)
+    args = ["convert", str(src), str(tmp_path / "c"), "--from", "json", "--to", "cane-base"]
+    assert main(args) == 0
+    assert "do not parse back" not in capsys.readouterr().err
+    assert main([*args, "--match", "casefold"]) == 0
+    assert "parses back elsewhere, at offset 0" in capsys.readouterr().err
+
+
 def test_cli_delimiter_inside_a_part(tmp_path: Path) -> None:
     """A part containing the quote character is written, because it parses back."""
     code = cane.Document(

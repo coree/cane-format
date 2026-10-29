@@ -34,6 +34,8 @@ All notable changes to this project are documented here. The format follows
 - `IssueKind.EMPTY_OUTPUT`.
 - `dumps(..., on_mismatch=, parse_options=)` (also `build_prompt`; `--on-mismatch` in the CLI):
   how a record that does not parse back is handled, and the parse settings it is checked with.
+  `cane-format convert --to cane-*` takes `--match`, `--anchor-fallback` and
+  `--prefer-whole-words` for that check.
 
 ### Changed
 - `dumps` parses back every record it writes; a record that would ground elsewhere is still

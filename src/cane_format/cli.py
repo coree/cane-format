@@ -18,7 +18,7 @@ from typing import Any
 from cane_format import bioc, brat, conll, json_format, xml_format
 from cane_format._formatter import dumps
 from cane_format._output import file_names, write_text
-from cane_format._parser import loads
+from cane_format._parser import ParseOptions, loads
 from cane_format.dialect import Variant
 from cane_format.errors import CaneFormatError
 from cane_format.model import Document
@@ -62,6 +62,10 @@ def _parser() -> argparse.ArgumentParser:
     c.add_argument("--to", dest="target", choices=WRITERS, required=True)
     _reader_options(c)
     _writer_options(c)
+    k = c.add_argument_group("checking cane-* output (the settings it will be parsed with)")
+    k.add_argument("--match", choices=["exact", "normalized", "casefold"], default="exact")
+    k.add_argument("--anchor-fallback", action="store_true")
+    k.add_argument("--prefer-whole-words", action="store_true")
     c.set_defaults(run=_convert)
 
     r = sub.add_parser("parse", help="parse CANE model output into a document")
@@ -230,13 +234,21 @@ def _write_file(
     elif target.startswith("cane-"):
         docs = _with_ids(docs)
         names = file_names(docs, ".cane")
+        variant = Variant(target[5:])
+        check = ParseOptions(
+            variant=variant,
+            match=args.match,
+            anchor_fallback=args.anchor_fallback,
+            prefer_whole_words=args.prefer_whole_words,
+        )
         rendered = [  # everything first, so an error leaves no partial output
             dumps(
                 d,
-                variant=target[5:],
+                variant=variant,
                 context=args.context,
                 on_unrepresentable=args.on_unrepresentable,
                 on_mismatch=args.on_mismatch,
+                parse_options=check,
             )
             for d in docs
         ]

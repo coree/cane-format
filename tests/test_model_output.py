@@ -21,6 +21,7 @@ from tests.conftest import DATA
 
 OUTPUTS = DATA / "model-output"
 EXPECTED = OUTPUTS / "expected"
+DIALECT = cane.ENGLISH  # the paper's prompts use the default literals
 
 pytestmark = pytest.mark.skipif(
     not OUTPUTS.is_dir(), reason="real model output (tests/data/model-output) is not present"
@@ -62,17 +63,23 @@ def test_gold_slices_back_to_its_text(path: Path) -> None:
 
 @pytest.mark.parametrize("path", datasets(), ids=lambda p: p.stem)
 def test_grounded_entities_are_copied_from_the_output(path: Path) -> None:
-    """Exact matching never produces a span whose text the model did not write."""
+    """Exact matching never produces a span whose text the model did not quote."""
     for doc in load(path):
         for model, runs in doc["outputs"].items():
             for variant, output in runs.items():
                 result = parse(doc, variant, output)
-                lines = output.splitlines()
-                quoted = {squash(q) for line in lines for q in re.findall(r"`([^`]*)`", line)}
                 for e in result.entities:
                     for s in e.spans:
-                        part = squash(doc["text"][s.start : s.end])
-                        assert part in quoted, (doc["id"], model, variant, part)
+                        part = doc["text"][s.start : s.end]
+                        words = r"\s+".join(re.escape(w) for w in part.split())
+                        qo, qc = re.escape(DIALECT.quote_open), re.escape(DIALECT.quote_close)
+                        quoted = re.compile(rf"{qo}\s*{words}\s*{qc}")
+                        assert any(quoted.search(line) for line in output.splitlines()), (
+                            doc["id"],
+                            model,
+                            variant,
+                            part,
+                        )
 
 
 @pytest.mark.parametrize("path", datasets(), ids=lambda p: p.stem)

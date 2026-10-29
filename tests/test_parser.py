@@ -21,7 +21,14 @@ def test_header_optional_and_empty_markers() -> None:
     with_header = cane.loads("Entities:\n`rash` is a ADR", text=TEXT, variant="base")
     without = cane.loads("`rash` is a ADR", text=TEXT, variant="base")
     assert with_header.ok and without.ok and with_header.entities == without.entities
-    for empty in ("NONE", "none", "Entities:\nNONE", "Entities:\n\nnone\n"):
+    for empty in (
+        "NONE",
+        "none",
+        "Entities:\nNONE",
+        "Entities:\n\nnone\n",
+        "Entities:",
+        "Entities:\n",
+    ):
         result = cane.loads(empty, text=TEXT, variant="base")
         assert result.ok and result.entities == ()
     # On one line, NONE is not the empty marker.

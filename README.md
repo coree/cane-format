@@ -89,7 +89,7 @@ cane-format parse output.cane --text doc.txt --variant full --to brat -o predict
 ## The CANE grammar
 
 ```
-output   ::= [HEADER NEWLINE] EMPTY | [HEADER NEWLINE] record { NEWLINE record }
+output   ::= HEADER | [HEADER NEWLINE] ( EMPTY | record { NEWLINE record } )
 record   ::= [HANDLE] parts COPULA [ARTICLE] LABEL [ANCHOR_INTRO anchors]
 parts    ::= QUOTE text QUOTE { PART_CONNECTIVE QUOTE text QUOTE }
 anchors  ::= QUOTE text QUOTE { ANCHOR_CONNECTIVE QUOTE text QUOTE }
@@ -112,8 +112,8 @@ check. An entity listed twice is written once.
 record at the earliest unused occurrence at or after the previous record's position (so
 repeated mentions and nested entities land where a reader expects them). Anchors select the
 occurrence. Overlap never rejects an entity; a record that would repeat an earlier entity
-exactly is reported as `duplicate`. `NONE` (any case, with or without the header) means no
-entities. An empty output also yields no entities but is reported as `empty_output`, because
+exactly is reported as `duplicate`. `NONE` (any case, with or without the header) or the
+header alone means no entities. An empty output also yields no entities but is reported as `empty_output`, because
 it usually means the generation failed.
 
 **Choosing an occurrence.** The parser grounds what the model wrote; it never judges whether

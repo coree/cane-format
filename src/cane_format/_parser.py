@@ -80,8 +80,9 @@ def loads(
     """Parse CANE model output and ground every record in ``text``.
 
     Problems in the model output never raise: they are returned as ``result.issues``. ``NONE``
-    (optionally after the header) means no entities; an empty output also gives no entities but
-    is reported as ``empty_output``, because it usually means the generation failed.
+    (optionally after the header) or the header alone means no entities; an empty output also
+    gives no entities but is reported as ``empty_output``, because it usually means the
+    generation failed.
 
     Args:
         output: The model's CANE output, exactly as received.

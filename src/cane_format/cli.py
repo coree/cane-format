@@ -132,12 +132,6 @@ def _writer_options(p: argparse.ArgumentParser) -> None:
     g.add_argument(
         "--alignment", choices=["strict", "expand", "contract"], default="strict", help="CoNLL"
     )
-    g.add_argument(
-        "--on-collision",
-        choices=["raise", "ignore"],
-        default="raise",
-        help="CANE: delimiter inside a part or anchor",
-    )
     g.add_argument("--out-tag", help="XML: one element name with the label in an attribute")
     g.add_argument("--out-type-attr", default="type", help="XML label attribute with --out-tag")
 
@@ -236,7 +230,6 @@ def _write_file(
                 variant=target[5:],
                 context=args.context,
                 on_unrepresentable=args.on_unrepresentable,
-                on_collision=args.on_collision,
             )
             for d in docs
         ]

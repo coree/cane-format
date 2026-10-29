@@ -5,7 +5,10 @@ import warnings
 import pytest
 
 import cane_format as cane
+from cane_format import Entity
 from tests.conftest import at, doc
+
+VARIANTS = ("base", "disco", "context", "full")
 
 TEXT = "After starting amoxicillin, the patient developed a rash."
 AMOX = doc(TEXT, ("DRUG", [at(TEXT, "amoxicillin")]), ("ADR", [at(TEXT, "rash")]))
@@ -81,12 +84,51 @@ def test_whitespace_is_collapsed_and_edges_refused() -> None:
         cane.dumps(doc("a b", ("S", [(0, 2)])), variant="base")
 
 
-def test_delimiter_collision() -> None:
+def test_delimiter_inside_content_is_written_when_it_parses_back() -> None:
     d = doc("use `x` here", ("CODE", [(4, 7)]))
-    with pytest.raises(cane.UnrepresentableError):
-        cane.dumps(d, variant="base")
+    for variant in VARIANTS:
+        out = cane.dumps(d, variant=variant)
+        assert cane.loads(out, text=d.text, variant=variant).entities == d.entities
     out = cane.dumps(d, variant="base", dialect=cane.Dialect(quote_open="«", quote_close="»"))
     assert out.splitlines()[1] == "«`x`» is a CODE"
+    # A part that reads as two parts does not parse back: written as is, and reported.
+    tricky = doc("say x` and `y now", ("Q", [(4, 13)]))
+    for variant in ("disco", "context"):
+        with pytest.warns(cane.LossyConversionWarning, match="entity T1"):
+            cane.dumps(tricky, variant=variant)
+
+
+def test_anchor_size_is_exact_and_ambiguous_records_are_reported() -> None:
+    # The one-unit anchor contains "CD4" twice (once inside "CD44"), so the record would
+    # ground on the first: written unchanged, with exactly `context` units, and reported.
+    # Any anchor reaching that far left contains both, so a larger context does not help.
+    text = "the CD44-CD25+, CD4-CD8- stage"
+    d = doc(text, ("P", [at(text, "CD4", 1)]))
+    with pytest.warns(cane.LossyConversionWarning, match="parses back elsewhere, at offset 4"):
+        out = cane.dumps(d, variant="context")
+    assert out.splitlines()[1] == "`CD4` is a P found in `CD44-CD25+, CD4-CD8-`"
+    # A repeated anchor: reported with one unit, unambiguous with the two the caller can ask for.
+    text = "take aspirin daily; then take aspirin daily"
+    d = doc(text, ("DRUG", [at(text, "aspirin", 1)]))
+    with pytest.warns(cane.LossyConversionWarning, match="parses back elsewhere, at offset 5"):
+        out = cane.dumps(d, variant="context")
+    assert out.splitlines()[1] == "`aspirin` is a DRUG found in `take aspirin daily`"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        out = cane.dumps(d, variant="context", context=2)
+    assert out.splitlines()[1] == "`aspirin` is a DRUG found in `then take aspirin daily`"
+    assert cane.loads(out, text=text, variant="context").entities == d.entities
+    # Without anchors a repeated string is reported the same way.
+    with pytest.warns(cane.LossyConversionWarning, match="parses back elsewhere, at offset 5"):
+        cane.dumps(d, variant="base")
+
+
+def test_an_entity_listed_twice_is_written_once() -> None:
+    entity = Entity(spans=[(0, 4)], label="X")
+    d = cane.Document(text="rash and fever", entities=(entity, Entity(spans=[(0, 4)], label="X")))
+    with pytest.warns(cane.LossyConversionWarning, match="written once"):
+        out = cane.dumps(d, variant="base")
+    assert out.splitlines()[1:] == ["`rash` is a X"]
 
 
 def test_handles_renumber_in_output_order() -> None:

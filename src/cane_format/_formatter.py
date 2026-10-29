@@ -7,6 +7,7 @@ import warnings
 from typing import Literal
 
 from cane_format._output import check, document_name
+from cane_format._parser import Echo
 from cane_format.dialect import ENGLISH, Dialect, Variant
 from cane_format.errors import LossyConversionWarning, UnrepresentableError
 from cane_format.model import Document, Entity, Span
@@ -23,13 +24,16 @@ def dumps(
     context: int = 1,
     handles: bool = False,
     on_unrepresentable: OnUnrepresentable = "raise",
-    on_collision: Literal["raise", "ignore"] = "raise",
     lossy: Literal["warn", "ignore"] = "warn",
     dialect: Dialect = ENGLISH,
 ) -> str:
     """Write a document's entities as CANE text, e.g. for a few-shot example.
 
     Entities are written in reading order: by start, outer before nested, then by label and ID.
+    Every record is parsed back as ``loads`` would parse it; a record that would ground
+    elsewhere (a repeated string without an anchor, or an anchor of ``context`` units that
+    occurs more than once) is still written as is and named in the lossy warning. An entity
+    listed twice is written once, and reported the same way.
 
     Args:
         doc: The document to write.
@@ -40,7 +44,6 @@ def dumps(
             label that is not one token, or discontinuous in Base/Context): ``"raise"``, or
             ``"skip"``, ``"first"`` (first span only) or ``"hull"`` (one span covering the
             gaps), which warn. Entities with label problems are skipped by any of these.
-        on_collision: ``"raise"`` if a part or anchor contains a delimiter, or ``"ignore"``.
         lossy: ``"warn"`` once about information CANE cannot carry, or ``"ignore"``.
         dialect: The surface vocabulary.
 
@@ -49,18 +52,25 @@ def dumps(
     """
     variant = Variant(variant)
     check("on_unrepresentable", on_unrepresentable, ("raise", "skip", "first", "hull"))
-    check("on_collision", on_collision, ("raise", "ignore"))
     check("lossy", lossy, ("warn", "ignore"))
     if context < 1:
         raise ValueError("context must be at least 1")
     dropped: list[str] = []
     records: list[str] = []
+    echo = Echo(doc.text, variant, dialect)
+    seen: set[Entity] = set()
     ordered = sorted(doc.entities, key=lambda e: (e.start, -e.end, e.label or "", e.id or ""))
     for entity in ordered:
+        if entity in seen:
+            dropped.append(f"entity {entity.id} (written once: it repeats an earlier entity)")
+            continue
+        seen.add(entity)
         spans = _writable_spans(doc.text, entity, variant, on_unrepresentable, dropped)
         if spans is None:
             continue
-        record = _record(doc.text, entity.label, spans, variant, context, dialect, on_collision)
+        label = entity.label or ""  # _writable_spans has refused entities without a label
+        record = _record(doc.text, label, spans, variant, context, dialect)
+        _check(echo, record, entity, label, spans, dropped)
         if handles:
             record = f"{dialect.handle_prefix}{len(records) + 1} {record}"
         records.append(record)
@@ -97,44 +107,45 @@ def _writable_spans(
     return (entity.spans[0],) if strategy == "first" else (entity.hull,)
 
 
-def _record(
-    text: str,
-    label: str | None,
+def _check(
+    echo: Echo,
+    record: str,
+    entity: Entity,
+    label: str,
     spans: tuple[Span, ...],
-    variant: Variant,
-    context: int,
-    dialect: Dialect,
-    on_collision: str,
+    dropped: list[str],
+) -> None:
+    """Parse ``record`` back; report it in ``dropped`` if it would not ground on ``spans``."""
+    placed = echo.place(record)
+    if placed is None:
+        dropped.append(f"entity {entity.id} (does not parse back: every occurrence is taken)")
+        return
+    if (placed.label, placed.spans) != (label, spans):
+        dropped.append(f"entity {entity.id} (parses back elsewhere, at offset {placed.start})")
+    echo.advance(placed.label or "", placed.spans)
+
+
+def _record(
+    text: str, label: str, spans: tuple[Span, ...], variant: Variant, context: int, d: Dialect
 ) -> str:
-    parts = [_content(text[s.start : s.end], text, dialect, on_collision) for s in spans]
-    copula = dialect.copula_plural if len(parts) > 1 else dialect.copula_singular
-    record = (
-        f" {dialect.part_connective} ".join(_quote(p, dialect) for p in parts)
-        + f" {copula} {dialect.articles[0]} {label}"
-    )
+    parts = [_content(text[s.start : s.end]) for s in spans]
+    copula = d.copula_plural if len(parts) > 1 else d.copula_singular
+    record = f" {d.part_connective} ".join(_quote(p, d) for p in parts)
+    record += f" {copula} {d.articles[0]} {label}"
     if variant.anchored:
-        anchors = [
-            _content(_anchor_text(text, s, context), text, dialect, on_collision) for s in spans
-        ]
-        record += f" {dialect.anchor_intro} " + f" {dialect.anchor_connective} ".join(
-            _quote(a, dialect) for a in anchors
+        anchors = [_content(_anchor_text(text, s, context)) for s in spans]
+        record += f" {d.anchor_intro} " + f" {d.anchor_connective} ".join(
+            _quote(a, d) for a in anchors
         )
     return record
 
 
-def _content(raw: str, text: str, dialect: Dialect, on_collision: str) -> str:
+def _content(raw: str) -> str:
     if raw != raw.strip():
         raise UnrepresentableError(
             f"span text {raw!r} starts or ends with whitespace, which CANE cannot carry"
         )
-    content = _WHITESPACE.sub(" ", raw)
-    if on_collision == "raise" and (
-        dialect.quote_open in content or dialect.quote_close in content
-    ):
-        raise UnrepresentableError(
-            f"{content!r} contains a CANE delimiter; choose a dialect with other quotes"
-        )
-    return content
+    return _WHITESPACE.sub(" ", raw)
 
 
 def _quote(content: str, dialect: Dialect) -> str:

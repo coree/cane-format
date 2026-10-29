@@ -34,6 +34,9 @@ All notable changes to this project are documented here. The format follows
 - `IssueKind.EMPTY_OUTPUT`.
 
 ### Changed
+- `dumps` parses back every record it writes; a record that would ground elsewhere is still
+  written and named in the `LossyConversionWarning`. An entity listed twice is written once.
+- `dumps` writes parts and anchors that contain the quote character (they parse back).
 - `loads` accepts `NONE` after the header (`Entities:` then `NONE`) as no entities.
 - `loads` reports an empty model output as `empty_output` (still no entities), so it no longer
   passes as a clean result; `cane-format parse` exits 1 for it.
@@ -56,6 +59,10 @@ All notable changes to this project are documented here. The format follows
 - Text verification shared by the brat and BioC readers (`_verify`).
 - CLI output to `-` is UTF-8 whatever the console encoding; documents without an ID get the
   next free number; an unknown `--encoding` is reported before any file is read.
+
+### Removed
+- `dumps(on_collision=)` and `--on-collision`: a quote character inside content is checked by
+  parsing the record back instead.
 
 ### Fixed
 - `guideline()` with `{` or `}` as quote characters.

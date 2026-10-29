@@ -323,6 +323,27 @@ def _inside_word(text: str, span: Span) -> bool:
 # --- stage 3: grounding -------------------------------------------------------------------
 
 
+class Echo:
+    """Grounds records one at a time exactly as ``loads`` would, keeping its state between
+    records, so that ``dumps`` can check that what it writes parses back."""
+
+    def __init__(self, text: str, variant: Variant, dialect: Dialect) -> None:
+        self._options = ParseOptions(variant=variant, dialect=dialect)
+        self._grounder = _Grounder(text, self._options)
+
+    def place(self, line: str) -> Entity | None:
+        """The entity ``line`` would ground as now; None if it would not parse or ground."""
+        records, issues = _read_records(line, self._options)
+        if issues or len(records) != 1:
+            return None
+        entity, _ = self._grounder._ground_record(records[0])
+        return entity
+
+    def advance(self, label: str, spans: tuple[Span, ...]) -> None:
+        """The record for ``label`` and ``spans`` was written and grounds there."""
+        self._grounder.advance(label, spans)
+
+
 class _Grounder:
     def __init__(self, text: str, options: ParseOptions) -> None:
         self.options = options
@@ -352,9 +373,13 @@ class _Grounder:
             issues.extend(record_issues)
             if entity is not None:
                 entities.append(entity)
-                self.produced.add((record.label, entity.spans))
-                self.cursor = entity.start
+                self.advance(record.label, entity.spans)
         return entities, issues
+
+    def advance(self, label: str, spans: tuple[Span, ...]) -> None:
+        """Record a grounded entity: it is used up, and reading continues from its start."""
+        self.produced.add((label, spans))
+        self.cursor = spans[0].start
 
     def _ground_record(self, r: _Record) -> tuple[Entity | None, list[ParseIssue]]:
         def issue(kind: IssueKind, message: str, cands: Iterable[Span] = ()) -> ParseIssue:

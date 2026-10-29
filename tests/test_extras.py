@@ -424,14 +424,16 @@ def test_cli_labels_are_trimmed(tmp_path: Path) -> None:
     )
 
 
-def test_cli_on_collision(tmp_path: Path) -> None:
+def test_cli_delimiter_inside_a_part(tmp_path: Path) -> None:
+    """A part containing the quote character is written, because it parses back."""
     code = cane.Document(
         text="use `x` now", id="c", entities=(Entity(spans=[(4, 7)], label="CODE"),)
     )
     src = _jsonl(tmp_path / "d.jsonl", code)
     args = ["convert", str(src), str(tmp_path / "c"), "--from", "json", "--to", "cane-base"]
-    assert main(args) == 2
-    assert main([*args, "--on-collision", "ignore"]) == 0
+    assert main(args) == 0
+    written = (tmp_path / "c" / "c.cane").read_text(encoding="utf-8")
+    assert cane.loads(written, text=code.text, variant="base").entities == code.entities
 
 
 def test_cli_xml_structure_options(tmp_path: Path) -> None:

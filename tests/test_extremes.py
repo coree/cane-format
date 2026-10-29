@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import warnings
 from collections import Counter
 
@@ -114,10 +115,16 @@ extreme(
 def test_extreme_round_trips(name: str) -> None:
     d = EXTREMES[name]
     for variant in _variants_for(d):
+        if variant in ("base", "disco") and name == "combining characters":
+            # Without an anchor the second "café" cannot be told from the first: written, and
+            # reported.
+            with pytest.warns(cane.LossyConversionWarning, match="parses back elsewhere"):
+                result = round_trip(d, variant)
+            assert result.ok
+            continue
         result = round_trip(d, variant)
         assert result.ok, (variant, result.issues)
-        if variant in ("context", "full") or name != "combining characters":
-            assert same_entities(result.entities, d.entities), variant
+        assert same_entities(result.entities, d.entities), variant
 
 
 def test_empty_and_whitespace_only_texts() -> None:
@@ -220,12 +227,19 @@ def test_generated_brat_round_trip(d: cane.Document) -> None:
 def test_generated_cane_keeps_every_mention(d: cane.Document, variant: str) -> None:
     """Every entity comes back with its label and surface text; nothing is silently lost.
 
-    Exact offsets are only guaranteed where the text leaves no ambiguity (see test_real_data),
-    so this checks surface forms.
+    Surface forms always come back; exact offsets wherever the text leaves no ambiguity. Every
+    entity that does not come back at its own spans is named in the formatter's warning.
     """
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", cane.LossyConversionWarning)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", cane.LossyConversionWarning)
         out = cane.dumps(d, variant=variant, on_unrepresentable="skip")
+    reported = {
+        m.group(1)
+        for w in caught
+        for m in re.finditer(
+            r"entity (\S+) \((?:parses back elsewhere|does not parse)", str(w.message)
+        )
+    }
     expected = [e for e in d.entities if len(e.spans) == 1 or cane.Variant(variant).multi_part]
     result = cane.loads(out, text=d.text, variant=variant)
     assert all(i.kind == cane.IssueKind.DUPLICATE for i in result.issues), result.issues
@@ -237,6 +251,8 @@ def test_generated_cane_keeps_every_mention(d: cane.Document, variant: str) -> N
     want = Counter(surface(e) for e in expected)
     assert got <= want
     assert sum(want.values()) - sum(got.values()) == len(result.issues)
+    unreported = [e for e in expected if e not in result.entities and e.id not in reported]
+    assert not unreported, (out, unreported)
 
 
 def test_span_strategy_is_valid() -> None:

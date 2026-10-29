@@ -100,8 +100,11 @@ Defaults (`Dialect`): `Entities:`, `NONE`, `` ` ``, `is` / `are`, `a` / `an` (`a
 are parsed by structure first, and whitespace in parts and anchors is matched flexibly.
 
 **Formatting** (`dumps`) emits one record per entity in reading order (left to right, outer
-before nested), always with the header, `NONE` when empty, and anchors of one whitespace unit
-on each side (`context=`).
+before nested), always with the header, `NONE` when empty, and anchors of exactly one
+whitespace unit on each side (`context=`). Every record is parsed back as `loads` would parse
+it: a record that would ground elsewhere (a repeated string in Base or Disco, an anchor that
+occurs twice) is still written as is and named in the `LossyConversionWarning`, so a few-shot
+example never misleads silently. An entity listed twice is written once.
 
 **Parsing** (`loads`) requires the variant, accepts a missing header and any article, and grounds each
 record at the earliest unused occurrence at or after the previous record's position (so

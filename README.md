@@ -1,10 +1,11 @@
 # cane-format
 
 LLMs are bad at counting characters and at copying long text exactly, so asking them for
-offsets or a tagged copy of the text goes wrong easily. With CANE (Context-Anchored Natural Expression), the model writes one plain
-statement per entity instead, and this library finds each one in the text and gives you exact
-character spans back. It also writes your annotated examples as CANE for few-shot prompts, and
-converts between CANE and the usual annotation formats.
+offsets or a tagged copy of the text goes wrong easily. With CANE (Context-Anchored Natural
+Expression), the model writes one plain statement per entity instead, and this library finds
+each one in the text and gives you exact character spans back. It also writes your annotated
+examples as CANE for few-shot prompts, and converts between CANE and the usual annotation
+formats.
 
 CANE is introduced in the paper [CANE is a Format: Rethinking Output Formats for Few-Shot
 LLM-Based Named Entity Recognition](https://aclanthology.org/2026.findings-emnlp.1398/)

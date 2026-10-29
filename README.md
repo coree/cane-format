@@ -2,8 +2,7 @@
 
 A lightweight, dependency-free Python library for CANE (Context-Anchored Natural Expression), an output format for LLM-based named entity recognition: write annotated text as CANE for few-shot prompts, parse model output back into character spans, and convert between CANE and common annotation formats.
 
-> Cornelius, Ito, Rinaldi. *CANE is a Format: Rethinking Output Formats for Few-Shot LLM-Based
-> Named Entity Recognition.* Findings of EMNLP 2026. https://aclanthology.org/2026.findings-emnlp.1398/
+> Cornelius, Ito, Rinaldi. *CANE is a Format: Rethinking Output Formats for Few-Shot LLM-Based Named Entity Recognition.* Findings of EMNLP 2026. https://aclanthology.org/2026.findings-emnlp.1398/
 
 Status: early release (0.1.0). The API may still change before 1.0; see the CHANGELOG.
 
@@ -83,6 +82,8 @@ cane-format parse output.cane --text doc.txt --variant full --to brat -o predict
 
 ## Behaviour
 
+- **Integrity.** Text is kept character for character; offsets are checked against stored
+  text, and a mismatch raises `IntegrityError`.
 - **Reporting.** What a format cannot hold raises `UnrepresentableError`, or, with an
   explicit strategy, is dropped with a `LossyConversionWarning`.
 - **Strictness.** Strict by default; leniency (case-insensitive matching, anchor fallback,

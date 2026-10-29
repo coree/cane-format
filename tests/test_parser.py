@@ -21,9 +21,23 @@ def test_header_optional_and_empty_markers() -> None:
     with_header = cane.loads("Entities:\n`rash` is a ADR", text=TEXT, variant="base")
     without = cane.loads("`rash` is a ADR", text=TEXT, variant="base")
     assert with_header.ok and without.ok and with_header.entities == without.entities
-    for empty in ("NONE", "none", "", "  \n "):
+    for empty in ("NONE", "none", "Entities:\nNONE", "Entities:\n\nnone\n"):
         result = cane.loads(empty, text=TEXT, variant="base")
         assert result.ok and result.entities == ()
+    # On one line, NONE is not the empty marker.
+    one_line = cane.loads("Entities: NONE", text=TEXT, variant="base")
+    assert kinds(one_line) == [IssueKind.MALFORMED_LINE]
+    # NONE among records is a bad line, not an empty output.
+    mixed = cane.loads("Entities:\nNONE\n`rash` is a ADR", text=TEXT, variant="base")
+    assert kinds(mixed) == [IssueKind.MALFORMED_LINE] and len(mixed.entities) == 1
+
+
+def test_empty_output_is_reported() -> None:
+    """An empty output usually means the generation failed, so it is not a clean result."""
+    for empty in ("", "  \n ", "\n\n"):
+        result = cane.loads(empty, text=TEXT, variant="base")
+        assert result.entities == () and kinds(result) == [IssueKind.EMPTY_OUTPUT]
+        assert result.issues[0].line_no is None
 
 
 def test_articles_accepted() -> None:
@@ -144,6 +158,50 @@ def test_partial_parts_ground_nothing() -> None:
     )
     assert kinds(result) == [IssueKind.NOT_FOUND]
     assert spans(result) == [(Span(*at(text, "headache")),)]
+
+
+def test_prefer_whole_words_only_reorders_occurrences() -> None:
+    text = "Tate against Northamptonshire at Northampton"
+    whole = (Span(*at(text, "Northampton", 1)),)
+    record = "`Northampton` is a LOC"
+    assert spans(cane.loads(record, text=text, variant="base")) == [
+        (Span(*at(text, "Northampton")),)
+    ]
+    for variant, output in (
+        ("base", record),
+        ("disco", record),
+        ("context", record + " found in `Northampton`"),
+        ("full", record + " found in `Northampton`"),
+    ):
+        result = cane.loads(output, text=text, variant=variant, prefer_whole_words=True)
+        assert result.ok and spans(result) == [whole]
+    # A second mention still gets the remaining occurrence, inside the longer word.
+    twice = cane.loads(record + "\n" + record, text=text, variant="base", prefer_whole_words=True)
+    assert twice.ok and spans(twice) == [whole, (Span(*at(text, "Northampton")),)]
+    # Nothing is rejected: a part that occurs only inside a word still grounds there.
+    inside = cane.loads(
+        "`Petra` is a LOC", text="Arabia Petraea", variant="base", prefer_whole_words=True
+    )
+    assert inside.ok and spans(inside) == [(Span(7, 12),)]
+
+
+def test_prefer_whole_words_keeps_reading_order_among_whole_words() -> None:
+    text = "aspirin, then aspirinate, then aspirin"
+    output = "`then` is a X\n`aspirin` is a DRUG"
+    # The reading position is at the first "then". Without the flag the next occurrence wins,
+    # inside "aspirinate"; with it, the next whole word (the earlier whole word comes last
+    # among whole words because it is before the reading position).
+    plain_order = cane.loads(output, text=text, variant="base")
+    assert spans(plain_order)[1] == (Span(*at(text, "aspirin", 1)),)
+    result = cane.loads(output, text=text, variant="base", prefer_whole_words=True)
+    assert spans(result)[1] == (Span(*at(text, "aspirin", 2)),)
+    # Script without spaces: every occurrence is inside a word, so the order is unchanged.
+    cjk = "阿司匹林和阿司匹林"
+    plain = cane.loads("`阿司匹林` is a DRUG", text=cjk, variant="base")
+    preferred = cane.loads(
+        "`阿司匹林` is a DRUG", text=cjk, variant="base", prefer_whole_words=True
+    )
+    assert spans(plain) == spans(preferred) == [(Span(0, 4),)]
 
 
 def test_anchor_selects_occurrence() -> None:

@@ -89,7 +89,7 @@ cane-format parse output.cane --text doc.txt --variant full --to brat -o predict
 ## The CANE grammar
 
 ```
-output   ::= EMPTY | [HEADER NEWLINE] record { NEWLINE record }
+output   ::= [HEADER NEWLINE] EMPTY | [HEADER NEWLINE] record { NEWLINE record }
 record   ::= [HANDLE] parts COPULA [ARTICLE] LABEL [ANCHOR_INTRO anchors]
 parts    ::= QUOTE text QUOTE { PART_CONNECTIVE QUOTE text QUOTE }
 anchors  ::= QUOTE text QUOTE { ANCHOR_CONNECTIVE QUOTE text QUOTE }
@@ -107,7 +107,31 @@ always with the header, `NONE` when empty, and anchors of one whitespace unit on
 record at the earliest unused occurrence at or after the previous record's position (so
 repeated mentions and nested entities land where a reader expects them). Anchors select the
 occurrence. Overlap never rejects an entity; a record that would repeat an earlier entity
-exactly is reported as `duplicate`.
+exactly is reported as `duplicate`. `NONE` (any case, with or without the header) means no
+entities. An empty output also yields no entities but is reported as `empty_output`, because
+it usually means the generation failed.
+
+**Choosing an occurrence.** The parser grounds what the model wrote; it never judges whether
+a prediction is plausible, so a part may land inside a longer word if that is where the text
+has it. When a part occurs several times, though, the choice matters. Without anchors (Base,
+Disco) only the reading order decides, and the earliest occurrence can be inside a longer
+word:
+
+```python
+text = "Maurice Tate against Northamptonshire at Northampton"
+cane.loads("`Northampton` is a LOC", text=text, variant="base")
+# -> "Northampton" inside "Northamptonshire" (the earliest occurrence)
+cane.loads("`Northampton` is a LOC", text=text, variant="base", prefer_whole_words=True)
+# -> the standalone "Northampton"
+```
+
+`prefer_whole_words=True` (opt-in) tries occurrences that neither start nor end between two
+letters or digits first, then the rest, each in reading order. It only reorders candidates:
+an entity that occurs only inside a word is still found, and in scripts written without
+spaces (every occurrence counts as inside a word) nothing changes. With anchors the anchor
+picks the occurrence first, so the switch matters only when the anchor leaves several open.
+On the CANE paper's model outputs it grounded about 0.1% more entities correctly, nearly all
+in Base and Disco.
 
 ---
 

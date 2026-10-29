@@ -31,6 +31,7 @@ class ParseOptions:
     anchor_fallback: bool = False
     strip_list_markers: bool = False
     handles: bool = False
+    prefer_whole_words: bool = False
     dialect: Dialect = ENGLISH
 
 
@@ -71,13 +72,16 @@ def loads(
     anchor_fallback: bool = False,
     strip_list_markers: bool = False,
     handles: bool = False,
+    prefer_whole_words: bool = False,
     dialect: Dialect = ENGLISH,
     options: ParseOptions | None = None,
     id: str | None = None,
 ) -> ParseResult:
     """Parse CANE model output and ground every record in ``text``.
 
-    Problems in the model output never raise: they are returned as ``result.issues``.
+    Problems in the model output never raise: they are returned as ``result.issues``. ``NONE``
+    (optionally after the header) means no entities; an empty output also gives no entities but
+    is reported as ``empty_output``, because it usually means the generation failed.
 
     Args:
         output: The model's CANE output, exactly as received.
@@ -89,6 +93,11 @@ def loads(
         anchor_fallback: Ground the bare part when its anchor is not found.
         strip_list_markers: Remove leading list markers (``- ``, ``1. ``) from lines.
         handles: Records carry handles (``T1 `x` is a L``), which become entity IDs.
+        prefer_whole_words: When a part could be placed at several occurrences, try those that
+            neither start nor end inside a word (between two letters or digits) first, then
+            the rest, each in reading order. Nothing is ever rejected. Matters mainly for
+            Base and Disco, where no anchor picks the occurrence: in "against Northamptonshire
+            at Northampton", `` `Northampton` `` then lands on the whole word.
         dialect: The surface vocabulary.
         options: All of the above as one ``ParseOptions``; excludes the other keywords.
         id: The ID of the resulting document (e.g. needed to write it as brat).
@@ -105,17 +114,19 @@ def loads(
             anchor_fallback=anchor_fallback,
             strip_list_markers=strip_list_markers,
             handles=handles,
+            prefer_whole_words=prefer_whole_words,
             dialect=dialect,
         )
-    elif (variant, labels, match, anchor_fallback, strip_list_markers, handles, dialect) != (
-        None,
-        None,
-        "exact",
-        False,
-        False,
-        False,
-        ENGLISH,
-    ):
+    elif (
+        variant,
+        labels,
+        match,
+        anchor_fallback,
+        strip_list_markers,
+        handles,
+        prefer_whole_words,
+        dialect,
+    ) != (None, None, "exact", False, False, False, False, ENGLISH):
         raise TypeError("pass either options= or individual keywords, not both")
     records, issues = _read_records(output, options)
     entities, grounding_issues = _Grounder(text, options).ground(records)
@@ -143,10 +154,12 @@ def _read_records(output: str, options: ParseOptions) -> tuple[list[_Record], li
     p = d._patterns
     lines = [(n, raw.strip()) for n, raw in enumerate(output.split(d.record_separator), 1)]
     lines = [(n, line) for n, line in lines if line]
+    if not lines:
+        return [], [ParseIssue(kind=IssueKind.EMPTY_OUTPUT, message="the output is empty")]
+    if lines[0][1] == d.header:
+        lines = lines[1:]
     if len(lines) == 1 and lines[0][1].upper() == d.empty.upper():
         return [], []
-    if lines and lines[0][1] == d.header:
-        lines = lines[1:]
     records: list[_Record] = []
     issues: list[ParseIssue] = []
 
@@ -299,12 +312,21 @@ def _side(searcher: _Searcher, side: str, *, before: bool) -> str:
     return (r"\s+" if side[0].isspace() else "") + words
 
 
+def _inside_word(text: str, span: Span) -> bool:
+    """Whether ``span`` starts or ends between two letters or digits of ``text``."""
+    start, end = span
+    return (start > 0 and text[start - 1].isalnum() and text[start].isalnum()) or (
+        end < len(text) and text[end].isalnum() and text[end - 1].isalnum()
+    )
+
+
 # --- stage 3: grounding -------------------------------------------------------------------
 
 
 class _Grounder:
     def __init__(self, text: str, options: ParseOptions) -> None:
         self.options = options
+        self.text = text
         self.searcher = _Searcher(text, options.match)
         self.produced: set[tuple[str, tuple[Span, ...]]] = set()
         self.handles: set[str] = set()
@@ -408,11 +430,15 @@ class _Grounder:
         """Reading order: per part, the earliest occurrence at or after the cursor first.
 
         Placements that keep the parts in their written order are tried first; only if there
-        is none may the parts land in any order.
+        is none may the parts land in any order. With ``prefer_whole_words``, occurrences inside
+        a word go after all others.
         """
-        ordered = [
-            sorted(c, key=lambda s: (s.start < self.cursor, s.start, s.end)) for c in per_part
-        ]
+
+        def key(s: Span) -> tuple[bool, bool, int, int]:
+            inside = self.options.prefer_whole_words and _inside_word(self.text, s)
+            return (inside, s.start < self.cursor, s.start, s.end)
+
+        ordered = [sorted(c, key=key) for c in per_part]
         budget = _SEARCH_LIMIT
         saw_complete = False
 

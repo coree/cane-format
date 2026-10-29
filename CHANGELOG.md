@@ -28,8 +28,15 @@ All notable changes to this project are documented here. The format follows
   texts written from the dialect and matching what `dumps` writes.
 - Command line: `cane-format convert` (between all formats) and `cane-format parse` (model
   output to any format; exits 1 when lines could not be grounded unless `--allow-issues`).
+- `loads(..., prefer_whole_words=True)` (and `--prefer-whole-words`): when a part occurs
+  several times, occurrences that do not start or end inside a word are tried first. Opt-in;
+  nothing is rejected.
+- `IssueKind.EMPTY_OUTPUT`.
 
 ### Changed
+- `loads` accepts `NONE` after the header (`Entities:` then `NONE`) as no entities.
+- `loads` reports an empty model output as `empty_output` (still no entities), so it no longer
+  passes as a clean result; `cane-format parse` exits 1 for it.
 - `loads(..., id=)` sets the resulting document's ID (needed e.g. to write it as brat).
 - Text writers (`write_json`, `write_conll`, `write_bioc_json`, `write_xml`) accept a path or
   an open text stream and render everything before writing; `write_brat` checks every file

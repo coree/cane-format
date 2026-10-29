@@ -36,6 +36,7 @@ class LossyConversionWarning(UserWarning):
 class IssueKind(str, Enum):
     """Closed vocabulary of problems found while parsing model output."""
 
+    EMPTY_OUTPUT = "empty_output"
     MALFORMED_LINE = "malformed_line"
     NOT_FOUND = "not_found"
     ANCHOR_NOT_FOUND = "anchor_not_found"

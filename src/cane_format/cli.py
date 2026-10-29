@@ -80,6 +80,11 @@ def _parser() -> argparse.ArgumentParser:
     r.add_argument("--anchor-fallback", action="store_true")
     r.add_argument("--strip-list-markers", action="store_true")
     r.add_argument("--handles", action="store_true")
+    r.add_argument(
+        "--prefer-whole-words",
+        action="store_true",
+        help="try occurrences that do not start or end inside a word first",
+    )
     r.add_argument("--encoding", default="utf-8", help="of the text and model output files")
     r.add_argument(
         "--allow-issues",
@@ -275,6 +280,7 @@ def _parse(args: argparse.Namespace) -> int:
         anchor_fallback=args.anchor_fallback,
         strip_list_markers=args.strip_list_markers,
         handles=args.handles,
+        prefer_whole_words=args.prefer_whole_words,
         id=args.text.stem,
     )
     for issue in result.issues:

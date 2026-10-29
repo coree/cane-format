@@ -5,7 +5,7 @@ A lightweight, dependency-free Python library for CANE (Context-Anchored Natural
 > Cornelius, Ito, Rinaldi. *CANE is a Format: Rethinking Output Formats for Few-Shot LLM-Based
 > Named Entity Recognition.* Findings of EMNLP 2026. https://aclanthology.org/2026.findings-emnlp.1398/
 
-Status: in development, not yet released.
+Status: early release (0.1.0). The API may still change before 1.0; see the CHANGELOG.
 
 ```bash
 pip install cane-format          # Python 3.10+, no dependencies

@@ -1,6 +1,6 @@
 [project]
 name = "cane-format"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Read, write and parse CANE, a natural-language output format for LLM-based named entity recognition."
 readme = "README.md"
 license = "MIT"
@@ -10,9 +10,14 @@ requires-python = ">=3.10"
 dependencies = []
 keywords = ["nlp", "ner", "llm", "annotation", "brat", "cane"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Text Processing :: Linguistic",
     "Typing :: Typed",

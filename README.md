@@ -2,7 +2,9 @@
 
 A lightweight, dependency-free Python library for CANE (Context-Anchored Natural Expression), an output format for LLM-based named entity recognition: write annotated text as CANE for few-shot prompts, parse model output back into character spans, and convert between CANE and common annotation formats.
 
-> Cornelius, Ito, Rinaldi. *CANE is a Format: Rethinking Output Formats for Few-Shot LLM-Based Named Entity Recognition.* Findings of EMNLP 2026. https://aclanthology.org/2026.findings-emnlp.1398/
+CANE is introduced in the paper [CANE is a Format: Rethinking Output Formats for Few-Shot
+LLM-Based Named Entity Recognition](https://aclanthology.org/2026.findings-emnlp.1398/)
+(Findings of EMNLP 2026). If you use it, please [cite the paper](#citation).
 
 Status: early release (0.1.0). The API may still change before 1.0; see the CHANGELOG.
 
@@ -138,6 +140,32 @@ letters or digits first, then the rest, each in reading order. It only reorders 
 an entity that occurs only inside a word is still found, and in scripts written without
 spaces (every occurrence counts as inside a word) nothing changes. With anchors the anchor
 picks the occurrence first, so the switch matters only when the anchor leaves several open.
+
+## Citation
+
+If you use CANE or this library in your work, whether in research or in industry, please
+cite the paper:
+
+```bibtex
+@inproceedings{cornelius-etal-2026-cane,
+    title = "{CANE} is a Format: Rethinking Output Formats for Few-Shot {LLM}-Based Named Entity Recognition",
+    author = "Cornelius, Joseph  and
+      Ito, Kei K  and
+      Rinaldi, Fabio",
+    editor = "Lee, Hung-Yi  and
+      Dev, Sunipa  and
+      Li, Jessy  and
+      Elliott, Desmond",
+    booktitle = "Findings of the {A}ssociation for {C}omputational {L}inguistics: {EMNLP} 2026",
+    month = oct,
+    year = "2026",
+    address = "Budapest, Hungary",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2026.findings-emnlp.1398/",
+    pages = "29773--29800",
+    ISBN = "979-8-89176-462-0"
+}
+```
 
 ---
 

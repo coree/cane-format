@@ -7,14 +7,15 @@ import warnings
 from typing import Literal
 
 from cane_format._output import check, document_name
-from cane_format._parser import Echo
+from cane_format._parser import Echo, ParseOptions
 from cane_format.dialect import ENGLISH, Dialect, Variant
-from cane_format.errors import LossyConversionWarning, UnrepresentableError
+from cane_format.errors import IssueKind, LossyConversionWarning, UnrepresentableError
 from cane_format.model import Document, Entity, Span
 
 _WHITESPACE = re.compile(r"\s+")
 
 OnUnrepresentable = Literal["raise", "skip", "first", "hull"]
+OnMismatch = Literal["warn", "raise", "ignore"]
 
 
 def dumps(
@@ -24,16 +25,19 @@ def dumps(
     context: int = 1,
     handles: bool = False,
     on_unrepresentable: OnUnrepresentable = "raise",
+    on_mismatch: OnMismatch = "warn",
+    parse_options: ParseOptions | None = None,
     lossy: Literal["warn", "ignore"] = "warn",
     dialect: Dialect = ENGLISH,
 ) -> str:
     """Write a document's entities as CANE text, e.g. for a few-shot example.
 
     Entities are written in reading order: by start, outer before nested, then by label and ID.
-    Every record is parsed back as ``loads`` would parse it; a record that would ground
-    elsewhere (a repeated string without an anchor, or an anchor of ``context`` units that
-    occurs more than once) is still written as is and named in the lossy warning. An entity
-    listed twice is written once, and reported the same way.
+    Every record is parsed back as ``loads`` with ``parse_options`` would parse it. A record
+    that would not ground on its own spans (a repeated string without an anchor, an anchor of
+    ``context`` units that occurs more than once, a part that reads as two) is still written
+    as is and handled by ``on_mismatch``. Two entities that would give the same record are
+    written once, with the lossy warning.
 
     Args:
         doc: The document to write.
@@ -44,36 +48,61 @@ def dumps(
             label that is not one token, or discontinuous in Base/Context): ``"raise"``, or
             ``"skip"``, ``"first"`` (first span only) or ``"hull"`` (one span covering the
             gaps), which warn. Entities with label problems are skipped by any of these.
+        on_mismatch: A record that does not parse back on its own spans: ``"warn"`` (one
+            ``LossyConversionWarning`` naming each), ``"raise"`` (``UnrepresentableError``),
+            or ``"ignore"`` (the check is not run).
+        parse_options: How the output will be parsed (``match``, ``prefer_whole_words``,
+            ``anchor_fallback``, …); by default ``loads``' defaults. Variant and dialect must
+            be the ones given here.
         lossy: ``"warn"`` once about information CANE cannot carry, or ``"ignore"``.
         dialect: The surface vocabulary.
 
     Raises:
-        UnrepresentableError: An entity cannot be written and no strategy allows dropping it.
+        UnrepresentableError: An entity cannot be written and no strategy allows dropping it,
+            or a record does not parse back and ``on_mismatch="raise"``.
     """
     variant = Variant(variant)
     check("on_unrepresentable", on_unrepresentable, ("raise", "skip", "first", "hull"))
+    check("on_mismatch", on_mismatch, ("warn", "raise", "ignore"))
     check("lossy", lossy, ("warn", "ignore"))
     if context < 1:
         raise ValueError("context must be at least 1")
+    if parse_options is None:
+        parse_options = ParseOptions(variant=variant, dialect=dialect)
+    elif (parse_options.variant, parse_options.dialect) != (variant, dialect):
+        raise ValueError("parse_options must have the variant and dialect given to dumps")
+    echo = None if on_mismatch == "ignore" else Echo(doc.text, parse_options)
     dropped: list[str] = []
+    mismatched: list[str] = []
     records: list[str] = []
-    echo = Echo(doc.text, variant, dialect)
-    seen: set[Entity] = set()
+    written: dict[tuple[str, tuple[Span, ...]], str | None] = {}
     ordered = sorted(doc.entities, key=lambda e: (e.start, -e.end, e.label or "", e.id or ""))
     for entity in ordered:
-        if entity in seen:
-            dropped.append(f"entity {entity.id} (written once: it repeats an earlier entity)")
-            continue
-        seen.add(entity)
         spans = _writable_spans(doc.text, entity, variant, on_unrepresentable, dropped)
         if spans is None:
             continue
         label = entity.label or ""  # _writable_spans has refused entities without a label
+        if (label, spans) in written:
+            twin = written[label, spans]
+            dropped.append(f"entity {entity.id} (written once: same record as entity {twin})")
+            continue
+        written[label, spans] = entity.id
         record = _record(doc.text, label, spans, variant, context, dialect)
-        _check(echo, record, entity, label, spans, dropped)
+        problem = None if echo is None else _mismatch(echo, record, label, spans)
+        if problem is not None:
+            if on_mismatch == "raise":
+                raise UnrepresentableError(f"entity {entity.id} {problem}")
+            mismatched.append(f"entity {entity.id} ({problem})")
         if handles:
             record = f"{dialect.handle_prefix}{len(records) + 1} {record}"
         records.append(record)
+    if mismatched:
+        warnings.warn(
+            f"{document_name(doc)}: records that do not parse back on their own spans: "
+            + "; ".join(mismatched),
+            LossyConversionWarning,
+            stacklevel=2,
+        )
     if lossy == "warn":
         _warn_lossy(doc, dropped)
     if not records:
@@ -107,22 +136,17 @@ def _writable_spans(
     return (entity.spans[0],) if strategy == "first" else (entity.hull,)
 
 
-def _check(
-    echo: Echo,
-    record: str,
-    entity: Entity,
-    label: str,
-    spans: tuple[Span, ...],
-    dropped: list[str],
-) -> None:
-    """Parse ``record`` back; report it in ``dropped`` if it would not ground on ``spans``."""
-    placed = echo.place(record)
-    if placed is None:
-        dropped.append(f"entity {entity.id} (does not parse back: every occurrence is taken)")
-        return
-    if (placed.label, placed.spans) != (label, spans):
-        dropped.append(f"entity {entity.id} (parses back elsewhere, at offset {placed.start})")
-    echo.advance(placed.label or "", placed.spans)
+def _mismatch(echo: Echo, record: str, label: str, spans: tuple[Span, ...]) -> str | None:
+    """Why ``record`` would not parse back on ``label`` and ``spans``; None if it would."""
+    placed, issues = echo.place(record)
+    if placed is not None:
+        if placed.spans != spans:
+            return f"parses back elsewhere, at offset {placed.start}"
+        if placed.label != label:
+            return f"parses back with the label {placed.label!r}"
+        return None
+    problem = next(i for i in issues if i.kind is not IssueKind.INVALID_LABEL)
+    return f"does not parse back: {problem.kind.value}: {problem.message}"
 
 
 def _record(

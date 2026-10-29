@@ -5,7 +5,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from typing import Literal
 
-from cane_format._formatter import OnUnrepresentable, dumps
+from cane_format._formatter import OnMismatch, OnUnrepresentable, dumps
+from cane_format._parser import ParseOptions
 from cane_format.dialect import ENGLISH, Dialect, Variant
 from cane_format.model import Document
 
@@ -76,6 +77,8 @@ def build_prompt(
     context: int = 1,
     handles: bool = False,
     on_unrepresentable: OnUnrepresentable = "raise",
+    on_mismatch: OnMismatch = "warn",
+    parse_options: ParseOptions | None = None,
     lossy: Literal["warn", "ignore"] = "warn",
     dialect: Dialect = ENGLISH,
 ) -> str:
@@ -91,7 +94,8 @@ def build_prompt(
         variant: The CANE variant.
         labels: The entity types in the order to list them (a set is sorted); by default
             the examples' labels, sorted. Required when there are no examples.
-        context, handles, on_unrepresentable, lossy, dialect: As for ``dumps``.
+        context, handles, on_unrepresentable, on_mismatch, parse_options, lossy, dialect: As
+            for ``dumps``.
     """
     v = Variant(variant)
     if labels is None:
@@ -110,6 +114,8 @@ def build_prompt(
             context=context,
             handles=handles,
             on_unrepresentable=on_unrepresentable,
+            on_mismatch=on_mismatch,
+            parse_options=parse_options,
             lossy=lossy,
             dialect=dialect,
         )

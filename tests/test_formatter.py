@@ -6,9 +6,7 @@ import pytest
 
 import cane_format as cane
 from cane_format import Entity
-from tests.conftest import at, doc
-
-VARIANTS = ("base", "disco", "context", "full")
+from tests.conftest import VARIANTS, at, doc
 
 TEXT = "After starting amoxicillin, the patient developed a rash."
 AMOX = doc(TEXT, ("DRUG", [at(TEXT, "amoxicillin")]), ("ADR", [at(TEXT, "rash")]))
@@ -91,11 +89,53 @@ def test_delimiter_inside_content_is_written_when_it_parses_back() -> None:
         assert cane.loads(out, text=d.text, variant=variant).entities == d.entities
     out = cane.dumps(d, variant="base", dialect=cane.Dialect(quote_open="«", quote_close="»"))
     assert out.splitlines()[1] == "«`x`» is a CODE"
-    # A part that reads as two parts does not parse back: written as is, and reported.
+    # A part that reads as two parts does not parse back: written as is, and reported with
+    # the reason the parser gives.
     tricky = doc("say x` and `y now", ("Q", [(4, 13)]))
-    for variant in ("disco", "context"):
-        with pytest.warns(cane.LossyConversionWarning, match="entity T1"):
-            cane.dumps(tricky, variant=variant)
+    with pytest.warns(cane.LossyConversionWarning, match=r"entity T1 \(parses back elsewhere"):
+        out = cane.dumps(tricky, variant="disco")
+    assert [e.spans for e in cane.loads(out, text=tricky.text, variant="disco").entities] == [
+        (cane.Span(4, 5), cane.Span(12, 13))
+    ]
+    reason = "does not parse back: malformed_line: several parts in CANE-context"
+    with pytest.warns(cane.LossyConversionWarning, match=reason):
+        out = cane.dumps(tricky, variant="context")
+    assert [i.kind for i in cane.loads(out, text=tricky.text, variant="context").issues] == [
+        cane.IssueKind.MALFORMED_LINE
+    ]
+
+
+def test_on_mismatch_is_separate_from_lossy() -> None:
+    text = "take aspirin daily; then take aspirin daily"
+    d = doc(text, ("DRUG", [at(text, "aspirin", 1)]))
+    # Silencing the lossy warning does not silence a mismatch.
+    with pytest.warns(cane.LossyConversionWarning, match="do not parse back"):
+        cane.dumps(d, variant="base", lossy="ignore")
+    with pytest.raises(cane.UnrepresentableError, match="parses back elsewhere, at offset 5"):
+        cane.dumps(d, variant="base", on_mismatch="raise")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert (
+            cane.dumps(d, variant="base", on_mismatch="ignore") == "Entities:\n`aspirin` is a DRUG"
+        )
+    with pytest.raises(ValueError, match="on_mismatch"):
+        cane.dumps(d, variant="base", on_mismatch="rais")  # type: ignore[arg-type]
+    # build_prompt passes it on.
+    with pytest.raises(cane.UnrepresentableError):
+        cane.build_prompt("x", examples=[d], variant="base", on_mismatch="raise")
+
+
+def test_check_follows_the_callers_parse_options() -> None:
+    text = "Rash rash"
+    d = doc(text, ("S", [(5, 9)]))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        cane.dumps(d, variant="base")  # exact matching: "rash" occurs once
+    casefold = cane.ParseOptions(variant=cane.Variant.BASE, match="casefold")
+    with pytest.warns(cane.LossyConversionWarning, match="parses back elsewhere, at offset 0"):
+        cane.dumps(d, variant="base", parse_options=casefold)
+    with pytest.raises(ValueError, match="variant and dialect"):
+        cane.dumps(d, variant="context", parse_options=casefold)
 
 
 def test_anchor_size_is_exact_and_ambiguous_records_are_reported() -> None:
@@ -121,6 +161,30 @@ def test_anchor_size_is_exact_and_ambiguous_records_are_reported() -> None:
     # Without anchors a repeated string is reported the same way.
     with pytest.warns(cane.LossyConversionWarning, match="parses back elsewhere, at offset 5"):
         cane.dumps(d, variant="base")
+
+
+def test_repairs_that_give_the_same_record_write_it_once() -> None:
+    text = "rash and fever and rash"
+    d = cane.Document(
+        text=text,
+        entities=(
+            Entity(spans=[(0, 4), (9, 14)], label="X"),
+            Entity(spans=[(0, 4), (19, 23)], label="X"),
+        ),
+    )
+    with pytest.warns(cane.LossyConversionWarning, match="written once: same record as entity T2"):
+        out = cane.dumps(d, variant="base", on_unrepresentable="first")
+    assert out.splitlines()[1:] == ["`rash` is a X"]
+
+
+def test_written_once_is_not_claimed_for_skipped_twins() -> None:
+    twins = (Entity(spans=[(0, 4)], label="a b"), Entity(spans=[(0, 4)], label="a b"))
+    d = cane.Document(text="rash and fever", entities=twins)
+    with pytest.warns(cane.LossyConversionWarning) as caught:
+        assert cane.dumps(d, variant="base", on_unrepresentable="skip") == "NONE"
+    message = " ".join(str(w.message) for w in caught)
+    assert "entity T1 (skipped" in message and "entity T2 (skipped" in message
+    assert "written once" not in message
 
 
 def test_an_entity_listed_twice_is_written_once() -> None:

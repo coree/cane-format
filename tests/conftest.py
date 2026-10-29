@@ -8,6 +8,7 @@ import pytest
 import cane_format as cane
 
 DATA = Path(__file__).parent / "data"
+VARIANTS = tuple(v.value for v in cane.Variant)
 
 requires_data = pytest.mark.skipif(
     not (DATA / "brat").is_dir(), reason="real test documents (tests/data) are not present"

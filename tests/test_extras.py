@@ -424,6 +424,17 @@ def test_cli_labels_are_trimmed(tmp_path: Path) -> None:
     )
 
 
+def test_cli_on_mismatch(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    text = "take aspirin daily; then take aspirin daily"
+    d = cane.Document(text=text, id="a", entities=(Entity(spans=[(30, 37)], label="DRUG"),))
+    src = _jsonl(tmp_path / "d.jsonl", d)
+    args = ["convert", str(src), str(tmp_path / "c"), "--from", "json", "--to", "cane-base"]
+    assert main(args) == 0
+    assert "do not parse back" in capsys.readouterr().err
+    assert main([*args, "--on-mismatch", "raise"]) == 2
+    assert "parses back elsewhere" in capsys.readouterr().err
+
+
 def test_cli_delimiter_inside_a_part(tmp_path: Path) -> None:
     """A part containing the quote character is written, because it parses back."""
     code = cane.Document(

@@ -253,11 +253,12 @@ class Document:
         if duplicates:
             raise ValueError(f"duplicate IDs: {', '.join(duplicates)}")
         used = set(counts)
+        start: dict[str, int] = {}
         _set(
             self,
             text=text,
-            entities=tuple(_with_id(e, "T", used) for e in entities),
-            relations=tuple(_with_id(r, "R", used) for r in relations),
+            entities=tuple(_with_id(e, "T", used, start) for e in entities),
+            relations=tuple(_with_id(r, "R", used, start) for r in relations),
             segments=tuple(segments),
             id=id,
             metadata=_frozen_mapping(metadata),
@@ -289,12 +290,18 @@ class Document:
         raise KeyError(id)
 
 
-def _with_id(item: _T, prefix: str, used: set[str]) -> _T:
+def _with_id(item: _T, prefix: str, used: set[str], start: dict[str, int]) -> _T:
+    """``item`` with the next free ID ``prefix<n>`` if it has none.
+
+    ``start`` remembers where the last search for ``prefix`` stopped: IDs are only ever added,
+    so no smaller number becomes free again.
+    """
     if item.id is not None:
         return item
-    n = 1
+    n = start.get(prefix, 1)
     while f"{prefix}{n}" in used:
         n += 1
     new_id = f"{prefix}{n}"
     used.add(new_id)
+    start[prefix] = n + 1
     return replace(item, id=new_id)

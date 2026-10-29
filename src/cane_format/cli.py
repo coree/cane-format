@@ -124,6 +124,12 @@ def _writer_options(p: argparse.ArgumentParser) -> None:
         help="split: CoNLL only",
     )
     g.add_argument(
+        "--on-mismatch",
+        choices=["warn", "raise", "ignore"],
+        default="warn",
+        help="cane-*: a record that does not parse back on its own spans",
+    )
+    g.add_argument(
         "--on-conflict",
         choices=["raise", "outermost", "innermost", "skip"],
         default="raise",
@@ -230,6 +236,7 @@ def _write_file(
                 variant=target[5:],
                 context=args.context,
                 on_unrepresentable=args.on_unrepresentable,
+                on_mismatch=args.on_mismatch,
             )
             for d in docs
         ]

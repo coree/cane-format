@@ -32,10 +32,15 @@ All notable changes to this project are documented here. The format follows
   several times, occurrences that do not start or end inside a word are tried first. Opt-in;
   nothing is rejected.
 - `IssueKind.EMPTY_OUTPUT`.
+- `dumps(..., on_mismatch=, parse_options=)` (also `build_prompt`; `--on-mismatch` in the CLI):
+  how a record that does not parse back is handled, and the parse settings it is checked with.
 
 ### Changed
 - `dumps` parses back every record it writes; a record that would ground elsewhere is still
-  written and named in the `LossyConversionWarning`. An entity listed twice is written once.
+  written and reported (`on_mismatch`, separate from `lossy`). Entities that would give the
+  same record are written once.
+- `loads` and `dumps` are about ten times faster on long documents (overlapping matches are
+  found without a lookahead; `Document` fills missing IDs in linear time).
 - `dumps` writes parts and anchors that contain the quote character (they parse back).
 - `loads` accepts `NONE` after the header (`Entities:` then `NONE`) as no entities.
 - `loads` reports an empty model output as `empty_output` (still no entities), so it no longer
@@ -52,7 +57,7 @@ All notable changes to this project are documented here. The format follows
 - CLI rebuilt on the library writers: `-` means stdout (and is refused for brat and cane-*
   directories), option values are fixed choices, every error exits 2, warnings are shown for
   every document, file names are safe and unique, `--labels` is trimmed, and the XML reading
-  options, `--on-collision` and `--encoding` (parse) are available.
+  options and `--encoding` (parse) are available.
 - `CANE_REQUIRE_DATA=1` makes missing real test documents fail the run instead of skipping.
 - `on_unrepresentable="skip"` (and the other strategies) also skip entities whose label the
   target cannot hold, instead of always raising.

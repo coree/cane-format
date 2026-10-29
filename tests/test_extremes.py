@@ -12,9 +12,7 @@ from hypothesis import strategies as st
 
 import cane_format as cane
 from cane_format import Entity, Member, Relation, Span
-from tests.conftest import same_entities
-
-VARIANTS = ("base", "disco", "context", "full")
+from tests.conftest import VARIANTS, same_entities
 
 
 def round_trip(d: cane.Document, variant: str, **kwargs: object) -> cane.ParseResult:

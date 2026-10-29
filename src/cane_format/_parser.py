@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal
 
 from cane_format.dialect import ENGLISH, Dialect, Variant
@@ -257,8 +257,13 @@ class _Searcher:
     def find(self, pattern: str, group: str = "x") -> list[Span]:
         """Every occurrence of ``pattern`` (overlapping), as spans of its group ``group``."""
         found: list[Span] = []
-        for m in re.finditer(f"(?=(?:{pattern}))", self.text):
+        regex = re.compile(pattern)
+        # One search per match start (overlapping matches); a lookahead around the pattern
+        # would find the same matches but defeat the engine's literal-prefix scan.
+        m = regex.search(self.text)
+        while m is not None:
             start, end = m.start(group), m.end(group)
+            m = regex.search(self.text, m.start() + 1)
             if self.to_orig is not None:
                 if start not in self.to_orig or end not in self.to_orig:
                     continue
@@ -324,24 +329,18 @@ def _inside_word(text: str, span: Span) -> bool:
 
 
 class Echo:
-    """Grounds records one at a time exactly as ``loads`` would, keeping its state between
-    records, so that ``dumps`` can check that what it writes parses back."""
+    """Grounds records one at a time exactly as ``loads`` with ``options`` would, keeping its
+    state between records, so that ``dumps`` can check that what it writes parses back."""
 
-    def __init__(self, text: str, variant: Variant, dialect: Dialect) -> None:
-        self._options = ParseOptions(variant=variant, dialect=dialect)
+    def __init__(self, text: str, options: ParseOptions) -> None:
+        self._options = replace(options, handles=False)  # records are checked without handles
         self._grounder = _Grounder(text, self._options)
 
-    def place(self, line: str) -> Entity | None:
-        """The entity ``line`` would ground as now; None if it would not parse or ground."""
+    def place(self, line: str) -> tuple[Entity | None, list[ParseIssue]]:
+        """The entity ``line`` grounds as (None if it does not), and the issues it raises."""
         records, issues = _read_records(line, self._options)
-        if issues or len(records) != 1:
-            return None
-        entity, _ = self._grounder._ground_record(records[0])
-        return entity
-
-    def advance(self, label: str, spans: tuple[Span, ...]) -> None:
-        """The record for ``label`` and ``spans`` was written and grounds there."""
-        self._grounder.advance(label, spans)
+        entities, grounding_issues = self._grounder.ground(records)
+        return (entities[0] if entities else None), issues + grounding_issues
 
 
 class _Grounder:
@@ -373,13 +372,9 @@ class _Grounder:
             issues.extend(record_issues)
             if entity is not None:
                 entities.append(entity)
-                self.advance(record.label, entity.spans)
+                self.produced.add((record.label, entity.spans))
+                self.cursor = entity.start
         return entities, issues
-
-    def advance(self, label: str, spans: tuple[Span, ...]) -> None:
-        """Record a grounded entity: it is used up, and reading continues from its start."""
-        self.produced.add((label, spans))
-        self.cursor = spans[0].start
 
     def _ground_record(self, r: _Record) -> tuple[Entity | None, list[ParseIssue]]:
         def issue(kind: IssueKind, message: str, cands: Iterable[Span] = ()) -> ParseIssue:

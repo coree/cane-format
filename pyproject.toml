@@ -8,7 +8,16 @@ license-files = ["LICENSE"]
 authors = [{ name = "Joseph Cornelius" }]
 requires-python = ">=3.10"
 dependencies = []
-keywords = ["nlp", "ner", "llm", "annotation", "brat", "cane"]
+keywords = [
+    "nlp",
+    "ner",
+    "named entity recognition",
+    "information extraction",
+    "llm",
+    "annotation",
+    "brat",
+    "cane",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -19,6 +28,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Text Processing :: Linguistic",
     "Typing :: Typed",
 ]
@@ -27,6 +37,9 @@ classifiers = [
 cane-format = "cane_format.cli:main"
 
 [project.urls]
+Repository = "https://github.com/coree/cane-format"
+Issues = "https://github.com/coree/cane-format/issues"
+Changelog = "https://github.com/coree/cane-format/blob/main/CHANGELOG.md"
 Paper = "https://aclanthology.org/2026.findings-emnlp.1398/"
 
 [dependency-groups]

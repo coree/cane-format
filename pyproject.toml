@@ -1,6 +1,6 @@
 [project]
 name = "cane-format"
-version = "0.1.0"
+version = "0.1.1"
 description = "Read, write and parse CANE, a natural-language output format for LLM-based named entity recognition."
 readme = "README.md"
 license = "MIT"

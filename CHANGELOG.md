@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-29
+
 ### Added
 - Documentation site at https://coree.github.io/cane-format/: guide pages with examples that
   run at every build, and an API reference generated from the docstrings. Linked from the

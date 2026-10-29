@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from typing import Literal
 
-from cane_format._writer import OnUnrepresentable, dumps
+from cane_format._formatter import OnUnrepresentable, dumps
 from cane_format.dialect import ENGLISH, Dialect, Variant
 from cane_format.model import Document
 

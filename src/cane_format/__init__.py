@@ -9,8 +9,8 @@ Usage::
     result.entities, result.issues
 """
 
+from cane_format._formatter import dumps
 from cane_format._parser import ParseOptions, ParseResult, loads
-from cane_format._writer import dumps
 from cane_format.bioc import (
     format_bioc_json,
     iter_bioc_json,

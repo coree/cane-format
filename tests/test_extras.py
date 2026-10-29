@@ -11,7 +11,7 @@ from cane_format import Entity
 from cane_format.cli import main
 from tests.conftest import doc
 from tests.test_brat import ANN, TEXT
-from tests.test_writer import AMOX, COMPLEX_DOC
+from tests.test_formatter import AMOX, COMPLEX_DOC
 
 # --- nervaluate-disco ---------------------------------------------------------------------
 
@@ -31,7 +31,7 @@ def test_to_nervaluate() -> None:
 # --- prompts ------------------------------------------------------------------------------
 
 
-def test_prompt_layout_and_examples_match_the_writer() -> None:
+def test_prompt_layout_and_examples_match_the_formatter() -> None:
     prompt = cane.build_prompt(
         "Aspirin caused nausea.", examples=[AMOX, COMPLEX_DOC], variant="full"
     )

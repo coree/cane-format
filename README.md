@@ -99,11 +99,11 @@ Defaults (`Dialect`): `Entities:`, `NONE`, `` ` ``, `is` / `are`, `a` / `an` (`a
 `found in`, `and`, handles `T1`, `T2`, …. Labels are one token. There is no escaping: records
 are parsed by structure first, and whitespace in parts and anchors is matched flexibly.
 
-**Writing** emits one record per entity in reading order (left to right, outer before nested),
-always with the header, `NONE` when empty, and anchors of one whitespace unit on each side
-(`context=`).
+**Formatting** (`dumps`) emits one record per entity in reading order (left to right, outer
+before nested), always with the header, `NONE` when empty, and anchors of one whitespace unit
+on each side (`context=`).
 
-**Parsing** requires the variant, accepts a missing header and any article, and grounds each
+**Parsing** (`loads`) requires the variant, accepts a missing header and any article, and grounds each
 record at the earliest unused occurrence at or after the previous record's position (so
 repeated mentions and nested entities land where a reader expects them). Anchors select the
 occurrence. Overlap never rejects an entity; a record that would repeat an earlier entity

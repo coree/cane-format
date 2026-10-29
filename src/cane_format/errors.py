@@ -26,7 +26,7 @@ class IntegrityError(CaneFormatError):
 
 
 class UnrepresentableError(CaneFormatError):
-    """A writer was asked to write something its target format cannot hold."""
+    """A writer or the CANE formatter was asked to write something its target cannot hold."""
 
 
 class LossyConversionWarning(UserWarning):

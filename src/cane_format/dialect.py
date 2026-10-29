@@ -37,7 +37,7 @@ class Dialect:
         quote_close: Delimiter closing a part or anchor.
         copula_singular: Verb for one part (``is``).
         copula_plural: Verb for several parts (``are``).
-        articles: Accepted articles; the writer always writes the first.
+        articles: Accepted articles; the formatter (`dumps`) always writes the first.
         anchor_intro: Phrase introducing the anchors (``found in``).
         part_connective: Joins parts (``and``).
         anchor_connective: Joins anchors (``and``).

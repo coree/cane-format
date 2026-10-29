@@ -11,7 +11,7 @@ import cane_format as cane
 from cane_format import Entity
 from tests.conftest import at, doc
 from tests.test_extremes import EXTREMES, documents
-from tests.test_writer import AMOX, COMPLEX_DOC
+from tests.test_formatter import AMOX, COMPLEX_DOC
 
 
 def back(d: cane.Document, **options: Any) -> cane.Document:

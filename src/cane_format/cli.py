@@ -16,9 +16,9 @@ from pathlib import Path
 from typing import Any
 
 from cane_format import bioc, brat, conll, json_format, xml_format
+from cane_format._formatter import dumps
 from cane_format._output import file_names, write_text
 from cane_format._parser import loads
-from cane_format._writer import dumps
 from cane_format.dialect import Variant
 from cane_format.errors import CaneFormatError
 from cane_format.model import Document

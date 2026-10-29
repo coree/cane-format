@@ -284,7 +284,7 @@ def test_grammar_words_inside_content() -> None:
 
 
 def test_round_trip_paper_examples() -> None:
-    from tests.test_writer import AMOX, COMPLEX_DOC
+    from tests.test_formatter import AMOX, COMPLEX_DOC
 
     for d, variants in (
         (AMOX, ("base", "disco", "context", "full")),

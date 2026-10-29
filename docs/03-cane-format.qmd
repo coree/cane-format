@@ -1,0 +1,166 @@
+---
+title: "The CANE format"
+guide-section: "Concepts"
+description: "What a CANE record is, the four variants, the grammar and its rules."
+---
+
+CANE (Context-Anchored Natural Expression) is an output format for named entity recognition
+with large language models, introduced in
+[*CANE is a Format*](https://aclanthology.org/2026.findings-emnlp.1398/) (Findings of EMNLP
+2026). Instead of character offsets, per-token tags or a marked-up copy of the input, the
+model writes one short statement per entity, copied verbatim from the text:
+
+```
+Entities:
+`metastatic breast cancer` is a DISEASE found in `metastatic breast cancer cells`
+`breast cancer cells` is a CELL found in `metastatic breast cancer cells caused`
+`headache` and `nausea` are a ADR found in `caused headache and` and `and nausea`
+```
+
+Models are good at copying visible text and bad at counting, so CANE never asks for offsets,
+token numbers or codes. This library turns those statements back into character spans.
+
+## A record, piece by piece
+
+Each line is a **record** and describes one entity. The last line above, taken apart:
+
+| Piece | In the example | Meaning |
+|---|---|---|
+| parts | `` `headache` ``, `` `nausea` `` | The entity's text, copied verbatim. Several parts make one discontinuous entity. |
+| part connective | `and` (between the parts) | Joins the parts. |
+| copula | `are` | `is` or `are`. |
+| article | `a` | Optional. |
+| label | `ADR` | The entity type: one token. |
+| anchor intro | `found in` | Starts the anchors. |
+| anchors | `` `caused headache and` ``, `` `and nausea` `` | One per part, in the same order: the part with some text around it, copied verbatim, saying *where* the part is. |
+| anchor connective | `and` (between the anchors) | Joins the anchors. |
+
+Anchors matter when a string occurs more than once: in a text that mentions aspirin twice,
+`` `aspirin` is a DRUG `` could mean either, while
+`` `aspirin` is a DRUG found in `take aspirin again` `` means one.
+
+## The four variants
+
+| Variant | Parts per record | Anchors |
+|---|---|---|
+| **Base** | exactly one | none |
+| **Disco** | one or more | none |
+| **Context** | exactly one | exactly one |
+| **Full** | one or more | one per part, in the same order |
+
+The variant is always given explicitly, when writing and when parsing: a line with an anchor
+is required in Full but wrong in Base, so the parser must know what the model was asked for.
+The same entity in two variants:
+
+```{python}
+import cane_format as cane
+
+text = "It caused headache and nausea after the first dose."
+doc = cane.Document(
+    text=text,
+    entities=(cane.Entity(spans=[(10, 18), (23, 29)], label="ADR"),),
+)
+for variant in ("disco", "full"):
+    print(f"--- {variant}")
+    print(cane.dumps(doc, variant=variant))
+```
+
+## Grammar
+
+```
+output   ::= HEADER | [HEADER NEWLINE] ( EMPTY | record { NEWLINE record } )
+record   ::= [HANDLE] parts COPULA [ARTICLE] LABEL [ANCHOR_INTRO anchors]
+parts    ::= QUOTE text QUOTE { PART_CONNECTIVE QUOTE text QUOTE }
+anchors  ::= QUOTE text QUOTE { ANCHOR_CONNECTIVE QUOTE text QUOTE }
+```
+
+`[ … ]` is optional, `{ … }` repeats zero or more times. The symbols and their default
+spelling (every one can be changed with a [dialect](#dialects)):
+
+| Symbol | Default | `Dialect` field |
+|---|---|---|
+| `HEADER` | `Entities:` | `header` |
+| `EMPTY` | `NONE` | `empty` |
+| `QUOTE` | `` ` `` (backtick) | `quote_open`, `quote_close` |
+| `COPULA` | `is`, `are` | `copula_singular`, `copula_plural` |
+| `ARTICLE` | `a`, `an` | `articles` |
+| `ANCHOR_INTRO` | `found in` | `anchor_intro` |
+| `PART_CONNECTIVE` | `and` | `part_connective` |
+| `ANCHOR_CONNECTIVE` | `and` | `anchor_connective` |
+| `HANDLE` | `T1`, `T2`, … | `handle_prefix` |
+| `NEWLINE` | a line break | `record_separator` |
+| `LABEL` | any token without whitespace | |
+| `text` | any text | |
+
+The grammar allows anchors and several parts everywhere; the variant then restricts them as
+in the table above.
+
+## Rules for a whole output
+
+- **One record per line.** Blank lines and whitespace at the start or end of a line are
+  ignored.
+- **The header is optional when parsing.** If present, it must be the first line, spelled
+  exactly (`entities:` is not the header). `dumps` always writes it.
+- **No entities** is written as `NONE` (in any case) on its own or after the header, or as the
+  header alone. `Entities: NONE` on a single line is not one of these and is reported.
+- **An empty output** gives no entities too, but is reported as `empty_output`: it usually
+  means the generation failed.
+- **A bad line never stops parsing.** It is reported, and the next line is read as usual.
+
+## Rules for a record
+
+- **Parts and anchors are verbatim text.** Whitespace inside them matches any run of
+  whitespace in the text, so `` `caused  headache` `` still matches *caused headache*.
+- **`is` and `are` are both accepted**, whatever the number of parts. `dumps` writes `is` for
+  one part and `are` for several.
+- **The article is optional**, and any article of the dialect is accepted (`is an ADR`,
+  `is ADR`). `dumps` writes the first one, `a`.
+- **The label is one token**: everything up to the next whitespace, punctuation included
+  (`is a ADR.` gives the label `ADR.`). Labels are checked only if you pass `labels=`.
+- **An anchor must contain its part.** The anchor is found in the text first, then the part
+  inside it.
+- **Handles** (`T1 `, `T2 ` before the parts) are accepted only with `handles=True`, and then
+  every record needs one. The handle becomes the entity's ID; a handle used twice is reported.
+- **There is no escaping.** A part may contain the quote character; records are split only at
+  a closing quote, connective and opening quote (`` ` and ` ``), so only that exact sequence
+  cannot appear inside a part.
+
+## What a wrong line looks like
+
+Each problem becomes a `ParseIssue` with the line number and a reason, and the other lines
+are still read:
+
+```{python}
+text = "Aspirin relieved the headache and the nausea."
+output = """Entities:
+`Aspirin` is a DRUG found in `Aspirin relieved`
+`headache` is a ADR
+`headache` and `nausea` are a ADR found in `the headache and`
+`fever` is a ADR found in `the fever`
+Aspirin is a DRUG found in `Aspirin relieved`"""
+
+result = cane.loads(output, text=text, variant="full")
+print([(e.label, text[e.start:e.end]) for e in result.entities])
+for issue in result.issues:
+    print(issue)
+```
+
+The [parsing guide](04-parsing.qmd) lists every issue kind and explains how a record is
+placed when its text occurs more than once.
+
+## Dialects
+
+Every literal (`Entities:`, `NONE`, the backtick, `is` / `are`, `a` / `an`, `found in`,
+`and`, the handle prefix `T`) comes from a `Dialect`. The default is `cane.ENGLISH`; another
+language or other delimiters are one object away:
+
+```{python}
+german = cane.Dialect(
+    header="Entitäten:", empty="KEINE", copula_singular="ist", copula_plural="sind",
+    articles=("ein", "eine"), anchor_intro="gefunden in", part_connective="und",
+    anchor_connective="und",
+)
+print(cane.dumps(doc, variant="full", dialect=german))
+```
+
+Pass the same dialect to `loads` to parse such output.

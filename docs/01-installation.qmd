@@ -1,0 +1,37 @@
+---
+title: "Installation"
+guide-section: "Get started"
+description: "Install cane-format from PyPI."
+---
+
+`cane-format` needs Python 3.10 or newer and has no dependencies.
+
+```bash
+pip install cane-format
+```
+
+With [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv add cane-format
+```
+
+Import it under its short name:
+
+```python
+import cane_format as cane
+```
+
+The command line tool `cane-format` is installed with the package:
+
+```bash
+cane-format --help
+```
+
+:::{.callout-note}
+## Versions
+
+`cane-format` follows [Semantic Versioning](https://semver.org/). While the version starts
+with `0.`, the API may still change between minor releases; every change is listed in the
+[changelog](https://github.com/coree/cane-format/blob/main/CHANGELOG.md).
+:::

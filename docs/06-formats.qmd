@@ -1,0 +1,52 @@
+---
+title: "File formats"
+guide-section: "Guides"
+description: "Read and write brat, BioC JSON, CoNLL/IOB, inline XML and offset JSON."
+---
+
+Every format has the same five functions: `read_*` (a file or folder, returns a list of
+documents), `iter_*` (the same, one document at a time), `parse_*` (from a string),
+`write_*` and `format_*` (to a file or a string).
+
+| Format | Functions | Holds |
+|---|---|---|
+| brat standoff | `read_brat` … `format_brat` | entities, relations, events, attributes, normalisations, notes |
+| BioC JSON | `read_bioc_json` … | passages, entities, relations, concepts |
+| CoNLL / IOB | `read_conll` … plus `from_tokens`, `align` | tokens, sentences, flat entities |
+| Inline XML | `read_xml` … | entities as elements, refs for discontinuous ones |
+| Offset JSON | `read_json` … | everything, losslessly |
+
+## Guarantees
+
+- **Text is never changed.** Files that carry text keep it character for character,
+  including `\r\n`, tabs and trailing whitespace.
+- **Offsets are verified** against the surface text a file stores next to them (brat's text
+  column, BioC's annotation text). A mismatch raises `IntegrityError`, with a hint when the
+  offsets would fit another unit; `verify="warn"` or `"off"` relaxes this.
+- **Nothing is lost silently.** What a format cannot hold raises `UnrepresentableError`, or,
+  with an explicit strategy, is dropped with a `LossyConversionWarning`.
+
+## Format notes
+
+:::{.callout-warning}
+## BioC offsets are UTF-8 bytes
+BioC JSON counts offsets in UTF-8 bytes, as the BioC specification and NCBI's data do. The
+reader and writer default to `offset_unit="utf8"`; all other formats count code points.
+:::
+
+**brat.** `read_brat` takes a folder of `.txt` / `.ann` pairs (or one file); `T`, `R`, `E`,
+`*`, `A`/`M`, `N` and `#` lines are all read and written back identically.
+
+**CoNLL / IOB.** Schemes `bio`, `iob1`, `bioes` and `bilou`. CoNLL files carry tokens, not
+text, so the text is rebuilt (tokens joined by spaces, sentences by newlines);
+`read_conll(..., text=raw)` aligns the tokens onto the real text instead. `from_tokens`
+accepts Hugging Face style tokens and tags. Writing needs a decision for overlapping or
+nested entities (`on_conflict`).
+
+**Inline XML.** Labels become element names (`<DRUG>…</DRUG>`), or a generic element with a
+type attribute (`tag="entity"`). Discontinuous and crossing entities are written with refs.
+The reader also takes corpora with structural markup, such as GENIA (`document_tag`,
+`segment_tags`, `exclude_tags`).
+
+**Offset JSON.** The library's own lossless format, JSON Lines for collections. Use it to
+store documents between steps of a pipeline.

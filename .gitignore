@@ -11,3 +11,7 @@ dist/
 .hypothesis/
 
 tests/data/
+
+# Documentation build (Great Docs)
+great-docs/
+_freeze/

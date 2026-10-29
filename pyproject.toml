@@ -1,6 +1,6 @@
 [project]
 name = "cane-format"
-version = "0.1.0"
+version = "0.1.1"
 description = "Read, write and parse CANE, a natural-language output format for LLM-based named entity recognition."
 readme = "README.md"
 license = "MIT"
@@ -37,6 +37,7 @@ classifiers = [
 cane-format = "cane_format.cli:main"
 
 [project.urls]
+Documentation = "https://coree.github.io/cane-format/"
 Repository = "https://github.com/coree/cane-format"
 Issues = "https://github.com/coree/cane-format/issues"
 Changelog = "https://github.com/coree/cane-format/blob/main/CHANGELOG.md"
@@ -44,6 +45,7 @@ Paper = "https://aclanthology.org/2026.findings-emnlp.1398/"
 
 [dependency-groups]
 dev = ["pytest>=8", "hypothesis>=6", "mypy>=1.13", "ruff>=0.8"]
+docs = ["great-docs==0.17.0; python_version >= '3.11'"]
 
 [build-system]
 requires = ["hatchling>=1.26"]

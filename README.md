@@ -1,19 +1,21 @@
 # cane-format
 
-A lightweight, dependency-free Python library for CANE (Context-Anchored Natural Expression), an output format for LLM-based named entity recognition: write annotated text as CANE for few-shot prompts, parse model output back into character spans, and convert between CANE and common annotation formats.
+A lightweight, dependency-free Python library for CANE (Context-Anchored Natural Expression),
+an output format for LLM-based named entity recognition: write annotated text as CANE for
+few-shot prompts, parse model output back into character spans, and convert between CANE and
+common annotation formats.
 
-> Cornelius, Ito, Rinaldi. *CANE is a Format: Rethinking Output Formats for Few-Shot LLM-Based Named Entity Recognition.* Findings of EMNLP 2026. https://aclanthology.org/2026.findings-emnlp.1398/
-
-Status: early release (0.1.0). The API may still change before 1.0; see the CHANGELOG.
+CANE is introduced in the paper [CANE is a Format: Rethinking Output Formats for Few-Shot
+LLM-Based Named Entity Recognition](https://aclanthology.org/2026.findings-emnlp.1398/)
+(Findings of EMNLP 2026).
 
 ```bash
 pip install cane-format          # Python 3.10+, no dependencies
 ```
 
-## What CANE looks like
+Early release; the API may change before 1.0.
 
-Instead of offsets, tags or a marked-up copy of the input, the model writes one short
-statement per entity, optionally with a verbatim snippet ("anchor") that locates it:
+## Example
 
 ```
 Entities:
@@ -22,7 +24,8 @@ Entities:
 `headache` and `nausea` are a ADR found in `caused headache and` and `and nausea`
 ```
 
-Four variants:
+One record per entity. The text after `found in` is an anchor that locates the entity;
+discontinuous entities list their parts joined by `and`.
 
 | Variant | Anchor | Discontinuous entities |
 |---|:---:|:---:|
@@ -31,49 +34,36 @@ Four variants:
 | **Context** | ✓ | ✗ |
 | **Full** | ✓ | ✓ |
 
-## How it is meant to be used
+## Usage
 
 ```python
-from pathlib import Path
-
 import cane_format as cane
 
-# 1. Load annotated documents (brat, BioC JSON, CoNLL, inline XML or JSON).
 examples = cane.read_brat("corpus/train")
-
-# 2. Build a few-shot prompt; the examples are written in CANE exactly as the parser expects.
 prompt = cane.build_prompt(new_text, examples=examples[:5], variant="full")
 
-# 3. Ask your model (any client; this library makes no model calls).
-output = your_llm(prompt)
+output = your_llm(prompt)  # this library makes no model calls
 
-# 4. Keep the raw output: it is what you look at when something goes wrong.
-Path("raw/doc-17.cane").write_text(output)
+result = cane.loads(output, text=new_text, variant="full", labels={"DRUG", "ADR"})
+result.entities  # entities with character offsets
+result.issues    # lines that could not be grounded
 
-# 5. Parse it back into character spans. Problems never raise; they are reported.
-result = cane.loads(output, text=new_text, variant="full", labels={"DRUG", "ADR"}, id="doc-17")
-result.entities          # grounded entities with character offsets
-result.issues            # e.g. line 4: not_found: part 'fever' not found in the text
-
-# 6. Write the result out, e.g. as brat to inspect it in an annotation tool.
 cane.write_brat([result.document], "predictions/")
 ```
 
-Evaluate with [nervaluate-disco](https://github.com/coree/nervaluate-disco) via
+Evaluation: [nervaluate-disco](https://github.com/coree/nervaluate-disco) via
 `cane.to_nervaluate(docs)`.
 
 ## Formats
 
-| Format | Read / write | Notes |
-|---|---|---|
-| CANE | `loads` / `dumps` | four variants, any language via `Dialect` |
-| brat standoff | `read_brat`, `write_brat` | T, E, R, `*`, A/M, N, `#` lines |
-| BioC JSON | `read_bioc_json`, `write_bioc_json` | UTF-8 byte offsets by default; PubTator3 exports |
-| CoNLL / IOB | `read_conll`, `write_conll` | BIO, IOB1, BIOES, BILOU; `from_tokens` for Hugging Face rows |
-| Inline XML | `read_xml`, `write_xml` | `<DRUG>…</DRUG>` or `<entity type=…>`; reads GENIA-style markup |
-| Offset JSON | `read_json`, `write_json` | lossless, JSON Lines |
-
-Every reader has an `iter_*` twin, and a `parse_*` / `format_*` pair for strings.
+| Format | Read / write |
+|---|---|
+| CANE | `loads`, `dumps` |
+| brat standoff | `read_brat`, `write_brat` |
+| BioC JSON | `read_bioc_json`, `write_bioc_json` |
+| CoNLL / IOB | `read_conll`, `write_conll` |
+| Inline XML | `read_xml`, `write_xml` |
+| Offset JSON | `read_json`, `write_json` |
 
 ```bash
 cane-format convert corpus/ train.conll --from brat --to conll --on-conflict outermost
@@ -82,14 +72,11 @@ cane-format parse output.cane --text doc.txt --variant full --to brat -o predict
 
 ## Behaviour
 
-- **Integrity.** Text is kept character for character; offsets are checked against stored
-  text, and a mismatch raises `IntegrityError`.
-- **Reporting.** What a format cannot hold raises `UnrepresentableError`, or, with an
-  explicit strategy, is dropped with a `LossyConversionWarning`.
-- **Strictness.** Strict by default; leniency (case-insensitive matching, anchor fallback,
-  list-marker repair, lenient tag sequences) is an explicit, opt-in switch.
+- Text is kept unchanged; offsets are verified against the text.
+- What a format cannot represent raises an error, or is dropped with a warning if requested.
+- Strict by default; lenient matching is opt-in.
 
-## The CANE grammar
+## Grammar
 
 ```
 output   ::= HEADER | [HEADER NEWLINE] ( EMPTY | record { NEWLINE record } )
@@ -98,46 +85,30 @@ parts    ::= QUOTE text QUOTE { PART_CONNECTIVE QUOTE text QUOTE }
 anchors  ::= QUOTE text QUOTE { ANCHOR_CONNECTIVE QUOTE text QUOTE }
 ```
 
-Defaults (`Dialect`): `Entities:`, `NONE`, `` ` ``, `is` / `are`, `a` / `an` (`a` is written),
-`found in`, `and`, handles `T1`, `T2`, …. Labels are one token. There is no escaping: records
-are parsed by structure first, and whitespace in parts and anchors is matched flexibly.
+## Citation
 
-**Formatting** (`dumps`) emits one record per entity in reading order (left to right, outer
-before nested), always with the header, `NONE` when empty, and anchors of exactly one
-whitespace unit on each side (`context=`). Every record is parsed back as `loads` would parse
-it (with `parse_options=`, the settings you will parse with): a record that would ground
-elsewhere (a repeated string in Base or Disco, an anchor that occurs twice) is still written
-as is and reported, so a few-shot example never misleads silently. `on_mismatch="warn"`
-(default) names each in a `LossyConversionWarning`, `"raise"` refuses, `"ignore"` skips the
-check. An entity listed twice is written once.
+If you use CANE or this library in your work, please cite the paper:
 
-**Parsing** (`loads`) requires the variant, accepts a missing header and any article, and grounds each
-record at the earliest unused occurrence at or after the previous record's position (so
-repeated mentions and nested entities land where a reader expects them). Anchors select the
-occurrence. Overlap never rejects an entity; a record that would repeat an earlier entity
-exactly is reported as `duplicate`. `NONE` (any case, with or without the header) or the
-header alone means no entities. An empty output also yields no entities but is reported as
-`empty_output`, because it usually means the generation failed.
-
-**Choosing an occurrence.** The parser grounds what the model wrote; it never judges whether
-a prediction is plausible, so a part may land inside a longer word if that is where the text
-has it. When a part occurs several times, though, the choice matters. Without anchors (Base,
-Disco) only the reading order decides, and the earliest occurrence can be inside a longer
-word:
-
-```python
-text = "Maurice Tate against Northamptonshire at Northampton"
-cane.loads("`Northampton` is a LOC", text=text, variant="base")
-# -> "Northampton" inside "Northamptonshire" (the earliest occurrence)
-cane.loads("`Northampton` is a LOC", text=text, variant="base", prefer_whole_words=True)
-# -> the standalone "Northampton"
+```bibtex
+@inproceedings{cornelius-etal-2026-cane,
+    title = "{CANE} is a Format: Rethinking Output Formats for Few-Shot {LLM}-Based Named Entity Recognition",
+    author = "Cornelius, Joseph  and
+      Ito, Kei K  and
+      Rinaldi, Fabio",
+    editor = "Lee, Hung-Yi  and
+      Dev, Sunipa  and
+      Li, Jessy  and
+      Elliott, Desmond",
+    booktitle = "Findings of the {A}ssociation for {C}omputational {L}inguistics: {EMNLP} 2026",
+    month = oct,
+    year = "2026",
+    address = "Budapest, Hungary",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2026.findings-emnlp.1398/",
+    pages = "29773--29800",
+    ISBN = "979-8-89176-462-0"
+}
 ```
-
-`prefer_whole_words=True` (opt-in) tries occurrences that neither start nor end between two
-letters or digits first, then the rest, each in reading order. It only reorders candidates:
-an entity that occurs only inside a word is still found, and in scripts written without
-spaces (every occurrence counts as inside a word) nothing changes. With anchors the anchor
-picks the occurrence first, so the switch matters only when the anchor leaves several open.
 
 ---
 

@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Documentation site at https://coree.github.io/cane-format/: guide pages with examples that
+  run at every build, and an API reference generated from the docstrings. Linked from the
+  README and the package metadata.
+
+### Fixed
+- `cane-format --help` described exit code 1 as "some lines could not be grounded"; it now
+  says "the output has issues", which also covers an empty output or an invalid label.
+
 ## [0.1.0] - 2026-10-29
 
 First release. No runtime dependencies; Python 3.10 to 3.14.

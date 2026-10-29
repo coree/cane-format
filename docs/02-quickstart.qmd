@@ -1,0 +1,89 @@
+---
+title: "Quickstart"
+guide-section: "Get started"
+description: "From annotated examples to a prompt, and from model output back to spans."
+---
+
+This page walks through the whole loop: write annotated examples as CANE, build a few-shot
+prompt, and parse what the model answers back into character spans.
+
+## An annotated document
+
+A `Document` is a text with entities. Each entity has one or more character spans and a
+label:
+
+```{python}
+import cane_format as cane
+
+text = "After starting amoxicillin, the patient developed a rash."
+doc = cane.Document(
+    text=text,
+    entities=(
+        cane.Entity(spans=[(15, 26)], label="DRUG"),
+        cane.Entity(spans=[(52, 56)], label="ADR"),
+    ),
+)
+[(e.label, text[e.start:e.end]) for e in doc.entities]
+```
+
+In practice you read documents from a corpus instead, for example with
+`cane.read_brat("corpus/train")`.
+
+## Write it as CANE
+
+`dumps` writes the document in one of the four [variants](03-cane-format.qmd). Full adds an
+anchor, a short verbatim snippet that tells the parser where the entity is:
+
+```{python}
+print(cane.dumps(doc, variant="full"))
+```
+
+## Build a prompt
+
+`build_prompt` puts the task, the entity types, the guidelines and your examples in the
+layout of the CANE paper, followed by the text to annotate:
+
+```{python}
+new_text = "Ibuprofen gave her a headache."
+prompt = cane.build_prompt(new_text, examples=[doc], variant="full")
+print(prompt[prompt.index("Examples:"):])  # the part after the guidelines
+```
+
+Send the prompt to any model; this library makes no model calls.
+
+## Parse the answer
+
+Suppose the model answers like this:
+
+```{python}
+output = """Entities:
+`Ibuprofen` is a DRUG found in `Ibuprofen gave`
+`headache` is a ADR found in `a headache.`
+`nausea` is a ADR found in `and nausea`"""
+
+result = cane.loads(output, text=new_text, variant="full", labels={"DRUG", "ADR"})
+[(e.label, e.spans) for e in result.entities]
+```
+
+Problems never raise. They are collected in `result.issues`, one per line that could not be
+grounded:
+
+```{python}
+for issue in result.issues:
+    print(issue)
+```
+
+`result.ok` is `False` whenever there is an issue; `result.raise_for_errors()` turns them
+into one exception if you prefer that.
+
+## Save the result
+
+Write the parsed document in any supported format, for example as brat to inspect it in an
+annotation tool:
+
+```python
+result = cane.loads(output, text=new_text, variant="full", id="doc-17")
+cane.write_brat([result.document], "predictions/")
+```
+
+Next: [the CANE format](03-cane-format.qmd), then [parsing](04-parsing.qmd) in detail.

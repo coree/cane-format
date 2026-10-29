@@ -1,0 +1,105 @@
+# Documentation site, built with Great Docs (https://posit-dev.github.io/great-docs/).
+# Only settings that differ from the defaults are listed.
+
+display_name: cane-format
+parser: google
+repo: https://github.com/coree/cane-format
+site_url: https://coree.github.io/cane-format/
+github_style: icon
+
+user_guide: docs
+
+authors:
+  - name: Joseph Cornelius
+    role: Author
+
+accent_color:
+  light: "#0f766e"
+  dark: "#2dd4bf"
+
+changelog:
+  enabled: false  # no GitHub Releases yet; the CHANGELOG.md is the record
+
+reference:
+  - title: Parsing and formatting CANE
+    desc: Turn model output into character spans, and documents into CANE.
+    contents:
+      - loads
+      - dumps
+      - ParseOptions
+      - ParseResult
+      - ParseIssue
+      - IssueKind
+      - Variant
+      - Dialect
+      - ENGLISH
+
+  - title: Prompts and evaluation
+    desc: Few-shot prompts in the CANE paper's layout, and spans for nervaluate-disco.
+    contents:
+      - build_prompt
+      - guideline
+      - to_nervaluate
+
+  - title: Document model
+    desc: Text with entities, relations and segments; immutable and validated.
+    contents:
+      - Document
+      - Entity
+      - Span
+      - Relation
+      - Member
+      - Concept
+      - Segment
+
+  - title: brat standoff
+    contents:
+      - read_brat
+      - iter_brat
+      - parse_brat
+      - write_brat
+      - format_brat
+
+  - title: BioC JSON
+    contents:
+      - read_bioc_json
+      - iter_bioc_json
+      - parse_bioc_json
+      - write_bioc_json
+      - format_bioc_json
+
+  - title: CoNLL / IOB
+    contents:
+      - read_conll
+      - iter_conll
+      - parse_conll
+      - write_conll
+      - format_conll
+      - from_tokens
+      - align
+
+  - title: Inline XML
+    contents:
+      - read_xml
+      - iter_xml
+      - parse_xml
+      - write_xml
+      - format_xml
+
+  - title: Offset JSON
+    contents:
+      - read_json
+      - iter_json
+      - parse_json
+      - write_json
+      - format_json
+
+  - title: Errors and warnings
+    contents:
+      - CaneFormatError
+      - ParseError
+      - IntegrityError
+      - UnrepresentableError
+      - LossyConversionWarning
+site:
+  css: docs/theme.css

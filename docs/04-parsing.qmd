@@ -1,0 +1,87 @@
+---
+title: "Parsing model output"
+guide-section: "Guides"
+description: "How loads grounds records in the text, its options, and the issues it reports."
+---
+
+`cane.loads(output, text=..., variant=...)` reads a model's CANE output and finds each
+record's place in the text. It never raises for problems in the output: everything that
+could not be grounded comes back as a `ParseIssue`.
+
+```{python}
+import cane_format as cane
+
+text = "Take aspirin with food. If pain persists, take aspirin again."
+output = "Entities:\n`aspirin` is a DRUG\n`aspirin` is a DRUG\n`fever` is a ADR"
+result = cane.loads(output, text=text, variant="base", labels={"DRUG", "ADR"})
+
+[(e.label, e.spans) for e in result.entities], [str(i) for i in result.issues]
+```
+
+## Grounding: where a record lands
+
+The parser grounds what the model wrote; it never judges whether a prediction is plausible.
+
+- **Reading order.** Each record takes the earliest unused occurrence at or after the
+  previous record's position, else the earliest unused one anywhere. Repeated mentions and
+  nested entities land where a reader expects them. (On the CANE paper's model outputs this
+  rule beat "earliest occurrence anywhere" in every case, including outputs grouped by
+  label.)
+- **Anchors** select the occurrence when there are several. If an anchor is not in the text,
+  or does not contain its part, the record is reported as `anchor_not_found`.
+- **Overlap never rejects.** Nested and overlapping entities are kept. A record that would
+  repeat an earlier entity exactly is reported as `duplicate`.
+- **Discontinuous parts** are grounded together: all parts or nothing, and parts may not
+  overlap each other.
+
+## Strict by default
+
+Every leniency is an explicit switch, off by default, and the parser never tries a looser
+setting on its own:
+
+| Option | Effect |
+|---|---|
+| `labels=` | Unknown labels keep the entity and add an `invalid_label` issue. |
+| `match="normalized"` | Match after Unicode NFC normalisation. |
+| `match="casefold"` | Match ignoring case. |
+| `anchor_fallback=True` | Ground the bare part when its anchor is not found. |
+| `strip_list_markers=True` | Accept lines starting with `- ` or `1. `. |
+| `handles=True` | Records carry handles (`T1 …`), which become entity IDs. |
+| `prefer_whole_words=True` | See below. |
+
+All of them can be bundled in one `cane.ParseOptions`, which is also recorded on every
+result as `result.settings`.
+
+## Choosing an occurrence
+
+Without anchors (Base, Disco), only the reading order decides, and the earliest occurrence
+can be inside a longer word:
+
+```{python}
+text = "Maurice Tate against Northamptonshire at Northampton"
+record = "`Northampton` is a LOC"
+for prefer in (False, True):
+    e = cane.loads(record, text=text, variant="base", prefer_whole_words=prefer).entities[0]
+    print(f"prefer_whole_words={prefer}:", text[: e.start] + "[" + text[e.start : e.end] + "]" + text[e.end :])
+```
+
+`prefer_whole_words=True` tries occurrences that neither start nor end between two letters or
+digits first. It only reorders candidates: an entity that occurs only inside a word is still
+found, and in scripts written without spaces nothing changes.
+
+## Issues
+
+| Kind | Meaning |
+|---|---|
+| `empty_output` | The output is empty: the generation probably failed. |
+| `malformed_line` | The line is not a record of this variant. |
+| `not_found` | A part does not occur in the text. |
+| `anchor_not_found` | An anchor does not occur in the text, or does not contain its part. |
+| `part_count_mismatch` | The number of anchors differs from the number of parts. |
+| `unknown_handle` | A handle does not refer to an entity. |
+| `invalid_label` | The label is not in `labels=`. |
+| `invalid_span` | The parts cannot form a valid entity. |
+| `duplicate` | The record repeats an earlier entity exactly. |
+
+Each issue carries the raw line, its line number and the candidate spans that were
+considered, so you can see why a line failed.

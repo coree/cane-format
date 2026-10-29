@@ -1,6 +1,6 @@
 """Command line: ``cane-format convert`` and ``cane-format parse``.
 
-Exit codes: 0 success, 1 (``parse`` only) some lines could not be grounded, 2 error.
+Exit codes: 0 success, 1 (``parse`` only) the output has issues, 2 error.
 """
 
 from __future__ import annotations
@@ -93,7 +93,7 @@ def _parser() -> argparse.ArgumentParser:
     r.add_argument(
         "--allow-issues",
         action="store_true",
-        help="exit with 0 even if some lines could not be grounded",
+        help="exit with 0 even if the output has issues",
     )
     _writer_options(r)
     r.set_defaults(run=_parse)

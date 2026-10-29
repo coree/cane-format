@@ -1,0 +1,45 @@
+---
+title: "Command line"
+guide-section: "Guides"
+description: "Convert between formats and parse model output from the shell."
+---
+
+The `cane-format` command has two subcommands.
+
+## `convert`
+
+Convert annotated documents between any two formats, including CANE:
+
+```bash
+cane-format convert corpus/ train.conll --from brat --to conll --on-conflict outermost
+cane-format convert train.jsonl examples/ --from json --to cane-full
+```
+
+`--from` is one of `brat`, `json`, `conll`, `bioc`, `xml`; `--to` also accepts
+`cane-base`, `cane-disco`, `cane-context` and `cane-full` (a folder with one `.cane` file per
+document). The reading and writing options mirror the library's keyword arguments, for
+example `--offset-unit`, `--scheme`, `--on-unrepresentable` and `--context`.
+
+When writing CANE, `--on-mismatch` controls the parse-back check, and `--match`,
+`--anchor-fallback` and `--prefer-whole-words` give the settings the output will be parsed
+with.
+
+## `parse`
+
+Parse a model's CANE output for a text and write the result in any format:
+
+```bash
+cane-format parse output.cane --text doc.txt --variant full --to brat -o predictions/
+```
+
+Issues are printed to standard error, one per line, with their line number.
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Success. |
+| `1` | `parse` only: the output has issues (unless `--allow-issues`). |
+| `2` | Any error, such as an unreadable file or an entity the target cannot hold. |
+
+Run `cane-format convert --help` or `cane-format parse --help` for every option.

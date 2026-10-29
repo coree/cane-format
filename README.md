@@ -9,6 +9,8 @@ CANE is introduced in the paper [CANE is a Format: Rethinking Output Formats for
 LLM-Based Named Entity Recognition](https://aclanthology.org/2026.findings-emnlp.1398/)
 (Findings of EMNLP 2026).
 
+Documentation: https://coree.github.io/cane-format/
+
 ```bash
 pip install cane-format          # Python 3.10+, no dependencies
 ```

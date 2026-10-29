@@ -27,6 +27,9 @@ classifiers = [
 cane-format = "cane_format.cli:main"
 
 [project.urls]
+Repository = "https://github.com/coree/cane-format"
+Issues = "https://github.com/coree/cane-format/issues"
+Changelog = "https://github.com/coree/cane-format/blob/main/CHANGELOG.md"
 Paper = "https://aclanthology.org/2026.findings-emnlp.1398/"
 
 [dependency-groups]

@@ -296,7 +296,13 @@ body.quarto-dark .cell-output.cell-output-stdout {
   color: var(--cane-muted);
 }
 
-/* Tables: hairlines only. */
+/* Tables: hairlines only, and as wide as the page (Great Docs sizes them to their content,
+   so prose cells would never wrap). */
+
+.gd-table-scroll > table {
+  width: 100% !important;
+}
+
 
 #quarto-document-content table {
   font-size: 0.93rem;

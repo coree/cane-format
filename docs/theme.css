@@ -1,0 +1,337 @@
+/* cane-format docs theme: a quieter layer over Great Docs' defaults.
+   Neutral zinc greys, one teal accent, Inter for text, JetBrains Mono for code. */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap");
+
+:root {
+  --cane-accent: #0f766e;
+  --cane-accent-soft: rgba(15, 118, 110, 0.08);
+  --cane-text: #18181b;
+  --cane-muted: #71717a;
+  --cane-border: #e4e4e7;
+  --cane-surface: #fafafa;
+  --cane-inline-code: #f4f4f5;
+  --cane-bg: #ffffff;
+  --cane-font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --cane-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --gd-navbar-bg: rgba(255, 255, 255, 0.85);
+  --gd-navbar-text: var(--cane-text);
+  --gd-active-link: var(--cane-accent);
+  --gd-link-color: var(--cane-accent);
+  --gd-code-bg: var(--cane-surface);
+  --gd-border-color: var(--cane-border);
+  --gd-sidebar-bg: transparent;
+  --bs-root-font-size: 15px;
+  --bs-body-font-family: var(--cane-font);
+  --bs-font-monospace: var(--cane-mono);
+}
+
+html.quarto-dark,
+body.quarto-dark {
+  --cane-accent: #2dd4bf;
+  --cane-accent-soft: rgba(45, 212, 191, 0.10);
+  --cane-text: #e4e4e7;
+  --cane-muted: #a1a1aa;
+  --cane-border: #27272a;
+  --cane-surface: #111113;
+  --cane-inline-code: #1f1f23;
+  --cane-bg: #09090b;
+
+  --gd-navbar-bg: rgba(9, 9, 11, 0.85);
+  --gd-bg-primary: var(--cane-bg);
+  --gd-code-bg: var(--cane-surface);
+}
+
+/* Type: 15px base (Quarto's default is 17px), tight headings. */
+
+body {
+  font-family: var(--cane-font);
+  line-height: 1.65;
+  color: var(--cane-text);
+  background-color: var(--cane-bg);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+
+h1, h2, h3, h4, .h1, .h2, .h3, .title {
+  font-family: var(--cane-font);
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  color: var(--cane-text);
+}
+
+h1, .h1, .title {
+  font-size: 2.1rem !important;
+  line-height: 1.2;
+}
+
+/* Section headings: guide pages render ## as <h1>, the landing page as <h2>. */
+body:not(.gd-homepage) #quarto-document-content section.level1 > h1,
+body.gd-homepage #quarto-document-content section.level2 > h2 {
+  font-size: 1.4rem !important;
+  margin-top: 2.6rem;
+  margin-bottom: 0.8rem;
+  border-bottom: none;
+}
+
+body:not(.gd-homepage) #quarto-document-content section.level2 > h2,
+body.gd-homepage #quarto-document-content section.level3 > h3 {
+  font-size: 1.12rem !important;
+  margin-top: 1.8rem;
+}
+
+#title-block-header .description,
+#title-block-header p.subtitle {
+  font-style: normal;
+  font-size: 1.1rem;
+  color: var(--cane-muted);
+  margin-top: 0.4rem;
+}
+
+#quarto-document-content a:not(.sidebar-link):not(.nav-link):not(.anchorjs-link) {
+  color: var(--cane-accent);
+  text-decoration: none;
+}
+
+#quarto-document-content a:not(.sidebar-link):not(.nav-link):hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Navbar: white, hairline border, blurred when content scrolls under it. */
+
+.navbar {
+  background: var(--gd-navbar-bg) !important;
+  backdrop-filter: saturate(180%) blur(10px);
+  -webkit-backdrop-filter: saturate(180%) blur(10px);
+  border-bottom: 1px solid var(--cane-border);
+  box-shadow: none;
+}
+
+.navbar-title {
+  border: none;
+  padding: 0;
+  font-family: var(--cane-font);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-size: 1.05rem;
+}
+
+.navbar .nav-link .menu-text {
+  font-size: 0.93rem;
+  font-weight: 500;
+  color: var(--cane-muted);
+}
+
+.navbar .nav-link.active .menu-text,
+.navbar .nav-link:hover .menu-text {
+  color: var(--cane-text);
+}
+
+.navbar .nav-link.active {
+  text-decoration: none;
+  border: none;
+}
+
+.navbar .gd-keyboard-btn,
+.navbar .dark-mode-toggle,
+.navbar .gh-widget-trigger,
+body .navbar .gd-navbar-icon,
+.navbar #quarto-search .aa-DetachedSearchButton {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  color: var(--cane-muted);
+}
+
+.navbar .gd-keyboard-btn:hover,
+.navbar .dark-mode-toggle:hover,
+.navbar .gh-widget-trigger:hover,
+body .navbar .gd-navbar-icon:hover,
+.navbar #quarto-search .aa-DetachedSearchButton:hover {
+  background: var(--cane-inline-code) !important;
+  border-color: var(--cane-border) !important;
+  color: var(--cane-text);
+}
+
+/* Left sidebar: no panel, small caps section labels, soft pill for the current page. */
+
+#quarto-sidebar,
+#quarto-sidebar.gd-sidebar-float,
+body.quarto-dark #quarto-sidebar.gd-sidebar-float {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+#quarto-sidebar .sidebar-item-section > .sidebar-item-container .menu-text,
+#quarto-sidebar .sidebar-item-section > .sidebar-item-container .sidebar-item-text {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cane-muted);
+}
+
+#quarto-sidebar .sidebar-link .menu-text {
+  font-size: 0.9rem;
+  color: var(--cane-text);
+  opacity: 0.85;
+}
+
+#quarto-sidebar .sidebar-link[href]::before {
+  box-shadow: none;
+}
+
+#quarto-sidebar a.sidebar-item-text.sidebar-link.active {
+  text-decoration: none;
+}
+
+#quarto-sidebar a.sidebar-item-text.sidebar-link.active::before {
+  opacity: 1;
+  background-color: var(--cane-accent-soft);
+}
+
+#quarto-sidebar a.sidebar-item-text.sidebar-link.active .menu-text {
+  color: var(--cane-accent);
+  font-weight: 600;
+  opacity: 1;
+}
+
+/* Right side: table of contents and the landing page's info panel. */
+
+#TOC #toc-title,
+body.gd-homepage #quarto-document-content .column-margin section.level3 > h3 {
+  font-size: 0.72rem !important;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cane-muted);
+  margin-top: 1.4rem;
+}
+
+#TOC a.nav-link {
+  font-size: 0.85rem;
+  color: var(--cane-muted);
+  border-left-color: var(--cane-border);
+}
+
+#TOC a.nav-link.active {
+  color: var(--cane-accent);
+  border-left-color: var(--cane-accent);
+}
+
+.column-margin a {
+  font-size: 0.87rem;
+  color: var(--cane-text);
+  text-decoration: none;
+}
+
+.column-margin a:hover {
+  color: var(--cane-accent);
+}
+
+/* Code: bordered, rounded, no heavy fill. */
+
+code, pre, kbd {
+  font-family: var(--cane-mono) !important;
+}
+
+p code:not(.sourceCode),
+li code:not(.sourceCode),
+td code:not(.sourceCode),
+body.quarto-dark p code:not(.sourceCode),
+body.quarto-dark li code:not(.sourceCode),
+body.quarto-dark td code:not(.sourceCode) {
+  font-size: 0.86em;
+  color: var(--cane-text);
+  background-color: var(--cane-inline-code);
+  border-radius: 5px;
+  padding: 0.12em 0.38em;
+}
+
+div.sourceCode,
+pre.sourceCode {
+  background-color: var(--cane-surface) !important;
+  border: 1px solid var(--cane-border);
+  border-radius: 10px;
+}
+
+div.sourceCode pre.sourceCode {
+  border: none;
+  background: transparent !important;
+  margin: 0;
+}
+
+/* Plain code blocks (no language) look like highlighted ones. */
+#quarto-document-content pre:not(.sourceCode) {
+  background-color: var(--cane-surface);
+  border: 1px solid var(--cane-border);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+}
+
+div.sourceCode pre,
+pre.sourceCode code,
+#quarto-document-content pre:not(.sourceCode) {
+  font-size: 0.85rem;
+  line-height: 1.65;
+}
+
+.cell-output pre,
+.cell-output.cell-output-stdout,
+body.quarto-dark .cell-output.cell-output-stdout {
+  background: transparent !important;
+  border: none;
+  padding: 0;
+}
+
+#quarto-document-content .cell-output pre {
+  font-size: 0.85rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  border-left: 2px solid var(--cane-border);
+  padding: 0.2rem 0 0.2rem 1rem;
+  color: var(--cane-muted);
+}
+
+/* Tables: hairlines only. */
+
+#quarto-document-content table {
+  font-size: 0.93rem;
+  border: none;
+}
+
+#quarto-document-content table > :not(caption) > * {
+  border-top: none !important;
+}
+
+#quarto-document-content table th {
+  font-weight: 600;
+  border-bottom: 1px solid var(--cane-border) !important;
+}
+
+#quarto-document-content table td,
+#quarto-document-content table th {
+  border-left: none !important;
+  border-right: none !important;
+  border-top: none;
+  border-bottom: 1px solid var(--cane-border);
+  padding: 0.55rem 0.75rem;
+}
+
+/* Quotes and callouts. */
+
+blockquote {
+  background: transparent !important;
+  border-left: 2px solid var(--cane-accent) !important;
+  color: var(--cane-muted);
+  font-size: 0.93rem;
+}
+
+.callout {
+  border-radius: 10px !important;
+  border: 1px solid var(--cane-border) !important;
+  border-left-width: 3px !important;
+}

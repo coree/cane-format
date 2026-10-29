@@ -44,6 +44,7 @@ Paper = "https://aclanthology.org/2026.findings-emnlp.1398/"
 
 [dependency-groups]
 dev = ["pytest>=8", "hypothesis>=6", "mypy>=1.13", "ruff>=0.8"]
+docs = ["great-docs==0.17.0; python_version >= '3.11'"]
 
 [build-system]
 requires = ["hatchling>=1.26"]

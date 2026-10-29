@@ -1,0 +1,89 @@
+---
+title: "The CANE format"
+guide-section: "Concepts"
+description: "What a CANE record is, the four variants, and the grammar."
+---
+
+CANE (Context-Anchored Natural Expression) is an output format for named entity recognition
+with large language models, introduced in
+[*CANE is a Format*](https://aclanthology.org/2026.findings-emnlp.1398/) (Findings of EMNLP
+2026). Instead of character offsets, per-token tags or a marked-up copy of the input, the
+model writes one short statement per entity, copied verbatim from the text:
+
+```
+Entities:
+`metastatic breast cancer` is a DISEASE found in `metastatic breast cancer cells`
+`breast cancer cells` is a CELL found in `metastatic breast cancer cells caused`
+`headache` and `nausea` are a ADR found in `caused headache and` and `and nausea`
+```
+
+Models are good at copying visible text and bad at counting, so CANE never asks for offsets,
+token numbers or codes. This library turns those statements back into character spans.
+
+## Records
+
+Each line is a **record**:
+
+- one or more **parts** in backticks: the entity's text, copied verbatim;
+- `is a` (or `are a` for several parts) and the **label**, one token;
+- optionally `found in` and one **anchor** per part: a short verbatim snippet around the part
+  that says *where* in the text it is.
+
+A discontinuous entity, like *headache … nausea* as one adverse reaction, has several parts.
+
+## The four variants
+
+| Variant | Anchor | Discontinuous entities |
+|---|:---:|:---:|
+| **Base** | ✗ | ✗ |
+| **Disco** | ✗ | ✓ |
+| **Context** | ✓ | ✗ |
+| **Full** | ✓ | ✓ |
+
+The variant is always given explicitly, when writing and when parsing: a line with an anchor
+is required in Full but wrong in Base, so the parser must know what the model was asked for.
+
+```{python}
+import cane_format as cane
+
+text = "It caused headache and nausea after the first dose."
+doc = cane.Document(
+    text=text,
+    entities=(cane.Entity(spans=[(10, 18), (23, 29)], label="ADR"),),
+)
+for variant in ("disco", "full"):
+    print(f"--- {variant}")
+    print(cane.dumps(doc, variant=variant))
+```
+
+## Grammar
+
+```
+output   ::= HEADER | [HEADER NEWLINE] ( EMPTY | record { NEWLINE record } )
+record   ::= [HANDLE] parts COPULA [ARTICLE] LABEL [ANCHOR_INTRO anchors]
+parts    ::= QUOTE text QUOTE { PART_CONNECTIVE QUOTE text QUOTE }
+anchors  ::= QUOTE text QUOTE { ANCHOR_CONNECTIVE QUOTE text QUOTE }
+```
+
+- `NONE`, the header alone, or the header followed by `NONE` mean *no entities*. A completely
+  empty output is reported as `empty_output`: it usually means the generation failed.
+- There is no escaping. Records are parsed by structure first, so the quote character may
+  appear inside a part as long as the record stays unambiguous.
+- Whitespace inside parts and anchors matches any run of whitespace in the text.
+
+## Dialects
+
+Every literal (`Entities:`, `NONE`, the backtick, `is` / `are`, `a` / `an`, `found in`,
+`and`, the handle prefix `T`) comes from a `Dialect`. The default is `cane.ENGLISH`; another
+language or other delimiters are one object away:
+
+```{python}
+german = cane.Dialect(
+    header="Entitäten:", empty="KEINE", copula_singular="ist", copula_plural="sind",
+    articles=("ein", "eine"), anchor_intro="gefunden in", part_connective="und",
+    anchor_connective="und",
+)
+print(cane.dumps(doc, variant="full", dialect=german))
+```
+
+Pass the same dialect to `loads` to parse such output.

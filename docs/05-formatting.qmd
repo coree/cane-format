@@ -1,0 +1,70 @@
+---
+title: "Writing CANE"
+guide-section: "Guides"
+description: "Write documents as CANE for few-shot examples, and build prompts."
+---
+
+`cane.dumps(doc, variant=...)` writes a document's entities as CANE, typically for the
+examples in a few-shot prompt.
+
+- Records come in **reading order**: left to right, outer before nested.
+- Anchors have exactly `context` whitespace units on each side (default 1).
+- The header is always written, and `NONE` when there are no entities.
+
+## Every record is checked
+
+`dumps` parses each record back as `loads` would. A record that would not land on its own
+spans, for example a string that also occurs earlier unannotated, is still written, but it
+is reported, so a few-shot example never misleads silently:
+
+```{python}
+import warnings
+import cane_format as cane
+
+text = "take aspirin daily; then take aspirin daily"
+doc = cane.Document(text=text, entities=(cane.Entity(spans=[(30, 37)], label="DRUG"),))
+
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always")
+    print(cane.dumps(doc, variant="context"))
+print(caught[0].message)
+print(cane.dumps(doc, variant="context", context=2))
+```
+
+| Option | Values |
+|---|---|
+| `on_mismatch` | `"warn"` (default), `"raise"`, or `"ignore"` (skip the check) |
+| `parse_options` | The `ParseOptions` you will parse with, e.g. `match="casefold"` |
+
+## What a variant cannot express
+
+A discontinuous entity in Base or Context, an entity without a label, or a label with spaces
+cannot be written. By default `dumps` raises `UnrepresentableError`; `on_unrepresentable`
+chooses another strategy, each with a warning:
+
+| `on_unrepresentable` | Effect |
+|---|---|
+| `"raise"` | Raise `UnrepresentableError` (default). |
+| `"skip"` | Leave the entity out. |
+| `"first"` | Write only the first span of a discontinuous entity. |
+| `"hull"` | Write one span covering all parts and the gaps. |
+
+Relations, concepts, attributes and segments have no place in CANE; `dumps` says so once in
+a `LossyConversionWarning` (`lossy="ignore"` silences it).
+
+## Prompts
+
+`build_prompt` writes the examples with `dumps` and the same options, so the prompt teaches
+exactly what `loads` expects:
+
+```python
+prompt = cane.build_prompt(
+    new_text,
+    examples=train_docs[:5],
+    variant="full",
+    labels=["DRUG", "ADR"],
+)
+```
+
+`cane.guideline(variant)` returns just the guideline paragraph, if you build prompts
+yourself.

@@ -2,8 +2,7 @@
 
 A lightweight, dependency-free Python library for CANE (Context-Anchored Natural Expression), an output format for LLM-based named entity recognition: write annotated text as CANE for few-shot prompts, parse model output back into character spans, and convert between CANE and common annotation formats.
 
-> Cornelius, Ito, Rinaldi. *CANE is a Format: Rethinking Output Formats for Few-Shot LLM-Based
-> Named Entity Recognition.* Findings of EMNLP 2026. https://aclanthology.org/2026.findings-emnlp.1398/
+> Cornelius, Ito, Rinaldi. *CANE is a Format: Rethinking Output Formats for Few-Shot LLM-Based Named Entity Recognition.* Findings of EMNLP 2026. https://aclanthology.org/2026.findings-emnlp.1398/
 
 Status: early release (0.1.0). The API may still change before 1.0; see the CHANGELOG.
 
@@ -23,8 +22,14 @@ Entities:
 `headache` and `nausea` are a ADR found in `caused headache and` and `and nausea`
 ```
 
-Four variants: **Base** (no anchor), **Disco** (several parts for discontinuous entities),
-**Context** (one anchor), **Full** (several parts, one anchor each).
+Four variants:
+
+| Variant | Anchor | Discontinuous entities |
+|---|:---:|:---:|
+| **Base** | ✗ | ✗ |
+| **Disco** | ✗ | ✓ |
+| **Context** | ✓ | ✗ |
+| **Full** | ✓ | ✓ |
 
 ## How it is meant to be used
 
@@ -75,16 +80,14 @@ cane-format convert corpus/ train.conll --from brat --to conll --on-conflict out
 cane-format parse output.cane --text doc.txt --variant full --to brat -o predictions/
 ```
 
-## Behaviour you can rely on
+## Behaviour
 
-- **Text is never changed.** Files that carry text keep it character for character; offsets
-  are verified against stored surface text, and a mismatch raises `IntegrityError` (with a
-  hint when the offsets fit another unit, such as UTF-8 bytes).
-- **Nothing is lost silently.** What a format cannot hold raises `UnrepresentableError`, or,
-  with an explicit strategy, is dropped with a `LossyConversionWarning`.
-- **Strict by default.** Leniency (case-insensitive matching, anchor fallback, list-marker
-  repair, lenient tag sequences) is always an explicit switch, and the parser never tries a
-  looser setting on its own.
+- **Integrity.** Text is kept character for character; offsets are checked against stored
+  text, and a mismatch raises `IntegrityError`.
+- **Reporting.** What a format cannot hold raises `UnrepresentableError`, or, with an
+  explicit strategy, is dropped with a `LossyConversionWarning`.
+- **Strictness.** Strict by default; leniency (case-insensitive matching, anchor fallback,
+  list-marker repair, lenient tag sequences) is an explicit, opt-in switch.
 
 ## The CANE grammar
 
@@ -113,8 +116,8 @@ record at the earliest unused occurrence at or after the previous record's posit
 repeated mentions and nested entities land where a reader expects them). Anchors select the
 occurrence. Overlap never rejects an entity; a record that would repeat an earlier entity
 exactly is reported as `duplicate`. `NONE` (any case, with or without the header) or the
-header alone means no entities. An empty output also yields no entities but is reported as `empty_output`, because
-it usually means the generation failed.
+header alone means no entities. An empty output also yields no entities but is reported as
+`empty_output`, because it usually means the generation failed.
 
 **Choosing an occurrence.** The parser grounds what the model wrote; it never judges whether
 a prediction is plausible, so a part may land inside a longer word if that is where the text
@@ -135,8 +138,6 @@ letters or digits first, then the rest, each in reading order. It only reorders 
 an entity that occurs only inside a word is still found, and in scripts written without
 spaces (every occurrence counts as inside a word) nothing changes. With anchors the anchor
 picks the occurrence first, so the switch matters only when the anchor leaves several open.
-On the CANE paper's model outputs it grounded about 0.1% more entities correctly, nearly all
-in Base and Disco.
 
 ---
 
